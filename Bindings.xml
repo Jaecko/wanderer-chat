@@ -1,0 +1,11 @@
+<Bindings>
+	<Binding name="WANDERERCHAT_REPLY" header="WANDERERCHAT">
+		WandererChat_Reply()
+	</Binding>
+	<Binding name="WANDERERCHAT_MESSAGES">
+		WandererChat_ToggleMessages()
+	</Binding>
+	<Binding name="WANDERER_MESSAGES">
+		WandererChat_ToggleMessages()
+	</Binding>
+</Bindings>

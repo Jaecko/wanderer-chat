@@ -1,0 +1,40 @@
+## Interface: 16001
+## Title: Wanderer Chat
+## Notes: The chat made calm: a glass look that fades, your name in gold, a card when you are named or greeted, quieter public channels, tabs with counts, private messages in their window.
+## Notes-frFR: Un chat apaisé : un aspect de verre qui s'efface, votre nom en or, une carte quand on vous nomme ou vous salue, des canaux publics plus calmes, des onglets avec leurs compteurs, les messages privés dans leur fenêtre.
+## Notes-deDE: Ein ruhiger Chat: ein gläserner Look, der verblasst, dein Name in Gold, eine Karte, wenn man dich nennt oder grüßt, ruhigere öffentliche Kanäle, Reiter mit Zählern, private Nachrichten in ihrem Fenster.
+## Notes-esES: Un chat sereno: un aspecto de cristal que se desvanece, tu nombre en dorado, una tarjeta cuando te nombran o te saludan, canales públicos más tranquilos, pestañas con contadores, los mensajes privados en su ventana.
+## Notes-esMX: Un chat sereno: un aspecto de cristal que se desvanece, tu nombre en dorado, una tarjeta cuando te nombran o te saludan, canales públicos más tranquilos, pestañas con contadores, los mensajes privados en su ventana.
+## Notes-itIT: Una chat serena: un aspetto di vetro che svanisce, il tuo nome in oro, un riquadro quando ti nominano o ti salutano, canali pubblici più tranquilli, schede con i contatori, i messaggi privati nella loro finestra.
+## Notes-ptBR: Um chat tranquilo: um visual de vidro que se apaga, seu nome em dourado, um cartão quando citam seu nome ou te cumprimentam, canais públicos mais calmos, abas com contadores, as mensagens privadas na janela delas.
+## Notes-ruRU: Спокойный чат: стеклянный вид, который тает, ваше имя золотом, карточка, когда вас называют или приветствуют, более тихие общие каналы, вкладки со счётчиками, личные сообщения в своём окне.
+## Notes-koKR: 차분한 채팅: 서서히 사라지는 유리 같은 모습, 금색으로 표시되는 내 이름, 누가 나를 부르거나 인사할 때 나타나는 카드, 더 조용한 공개 채널, 개수가 표시되는 탭, 전용 창의 귓속말.
+## Notes-zhCN: 安静的聊天：会渐渐淡去的玻璃外观，金色显示的你的名字，有人提到你或打招呼时出现的卡片，更清静的公共频道，带计数的标签页，私聊在专属窗口中。
+## Notes-zhTW: 安靜的聊天：會漸漸淡去的玻璃外觀，金色顯示的你的名字，有人提到你或打招呼時出現的卡片，更清靜的公共頻道，帶計數的分頁，私聊在專屬視窗中。
+## Category: Chat & Communication
+## Version: 1.3.0
+## Author: Jaekco
+## IconTexture: Interface\Icons\INV_Letter_17
+## RequiredDeps: Wanderer
+## SavedVariables: WandererChatAccountDB
+## SavedVariablesPerCharacter: WandererChatDB
+## X-License: GPL-3.0-or-later
+## X-Curse-Project-ID: 1787033
+## X-Website: https://wanderer-addon.com
+
+Locales.lua
+Locales\[TextLocale].lua
+Chat.lua
+Comfort.lua
+Messages.lua
+Tabs.lua
+Glass.lua
+GlassDump.lua
+Highlight.lua
+Alerts.lua
+Moments.lua
+Channels.lua
+Social.lua
+Quiet.lua
+Search.lua
+Options.lua
