@@ -629,7 +629,7 @@ local NAME_ROOM = LIST_WIDTH - TEXT_LEFT - MORE_COLUMN - 4
 -- Its look, as it is now: shown, under the mouse, or neither.
 local function Paint(row)
 	local selected = row.key ~= nil and row.key == current
-	local hovered = row:IsMouseOver() or row.more:IsMouseOver()
+	local hovered = (U.Hovered and U.Hovered(row) or row:IsMouseOver()) or (U.Hovered and U.Hovered(row.more) or row.more:IsMouseOver())
 	if selected then
 		row.background:SetColorTexture(1, 0.82, 0, hovered and 0.14 or 0.1)
 	else
@@ -682,7 +682,7 @@ local function RowFor(index)
 	if row then return row end
 	row = CreateFrame("Button", nil, list)
 	row:SetHeight(ROW_HEIGHT)
-	row:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+	row:RegisterForClicks("LeftButtonUp", "RightButtonUp") row.padRight = true
 	row.background = row:CreateTexture(nil, "BACKGROUND")
 	row.background:SetAllPoints()
 	row.edge = row:CreateTexture(nil, "ARTWORK")
@@ -905,7 +905,7 @@ local function CreateWindow()
 	person = CreateFrame("Button", nil, window)
 	person:SetPoint("TOPLEFT", portrait, "TOPLEFT")
 	person:SetPoint("BOTTOMRIGHT", info, "BOTTOMRIGHT")
-	person:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+	person:RegisterForClicks("LeftButtonUp", "RightButtonUp") person.padRight = true
 	person:SetScript("OnClick", function(self) OpenMenu(self, current) end)
 	Skin.Tooltip(person, L.MESSAGES_PERSON_HINT, "ANCHOR_BOTTOM")
 	person:Hide()
@@ -1328,7 +1328,7 @@ local function MakeChatButton()
 	button:SetPoint("TOPLEFT", social, "TOPRIGHT", 0, 0)
 	button:SetFrameStrata(social:GetFrameStrata())
 	button:SetFrameLevel(social:GetFrameLevel())
-	button:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+	button:RegisterForClicks("LeftButtonUp", "RightButtonUp") button.padRight = true
 	Dress(button, social)
 	local copies = CopyRegions(button, social)
 	-- The friends' icon becomes a speech bubble, at the same place and size.

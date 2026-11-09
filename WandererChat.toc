@@ -12,7 +12,7 @@
 ## Notes-zhCN: 安静的聊天：会渐渐淡去的玻璃外观，金色显示的你的名字，有人提到你或打招呼时出现的卡片，更清静的公共频道，带计数的标签页，私聊在专属窗口中。
 ## Notes-zhTW: 安靜的聊天：會漸漸淡去的玻璃外觀，金色顯示的你的名字，有人提到你或打招呼時出現的卡片，更清靜的公共頻道，帶計數的分頁，私聊在專屬視窗中。
 ## Category: Chat & Communication
-## Version: 1.3.0
+## Version: 1.3.3
 ## Author: Jaekco
 ## IconTexture: Interface\Icons\INV_Letter_17
 ## RequiredDeps: Wanderer

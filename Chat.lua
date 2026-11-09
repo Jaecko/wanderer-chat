@@ -31,7 +31,7 @@ ns.DEFAULTS = {
 	links = true, -- web addresses in the chat become links, ready to copy
 	fontSize = 16, -- every chat window at this size; the lowest step: the game's own (set tab by tab)
 	-- Private messages in their own window: asked for.
-	messagesWindow = false,
+	messagesWindow = true,
 	messagesPopup = true, -- the window opens on a new message (never in a fight)
 	messagesHideInChat = true, -- and the chat no longer shows them
 	messagesSound = true, -- the game's own whisper sound, which the chat no longer plays for them
