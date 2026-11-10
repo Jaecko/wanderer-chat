@@ -254,6 +254,7 @@ local function Card()
 	if card then return card end
 	-- (a card at the mouse, read over the chat and every window: drawn as a tooltip, nearly solid)
 	card = Skin.CreateWindow("WandererChatNameCard", "TOOLTIP")
+	if Skin.PadWindow then Skin.PadWindow(card) end
 	local cardSkin = Skin.Get(card)
 	if cardSkin then
 		cardSkin.minOpacity = 0.97

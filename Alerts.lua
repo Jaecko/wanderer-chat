@@ -58,6 +58,16 @@ function ns.InitHolder()
 		enabled = function() return ns.On() end,
 		default = function() return ns.DefaultPlace() end })
 	Place()
+	-- (a controller: its touchpad goes to the cards first, their buttons and their cross)
+	if W.Skin.PadNotice then W.Skin.PadNotice(holder) end
+	-- (busy or free again: a fight, a scene, away; nothing tells all three, looked at twice a second)
+	local since = 0
+	CreateFrame("Frame"):SetScript("OnUpdate", function(_, elapsed)
+		since = since + elapsed
+		if since < 0.5 then return end
+		since = 0
+		ns.RefreshHolder()
+	end)
 	-- (the chat placed by then: the place by default looked at again, once)
 	local arrival = CreateFrame("Frame")
 	arrival:RegisterEvent("PLAYER_ENTERING_WORLD")

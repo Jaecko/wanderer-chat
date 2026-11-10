@@ -11,7 +11,10 @@ local U = W and W.Util
 local MIN_SIZE = 24 -- smaller pieces (icons, letters) left out
 local MAX_LINES = 400
 
-local function Clean(value) return U and U.Clean(value) or value end
+local function Clean(value)
+	if U then return U.Clean(value) end
+	return value
+end
 
 local function Path(region)
 	local parts, node, guard = {}, region, 0

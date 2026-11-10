@@ -144,7 +144,6 @@ local function Counts(r, g, b, id)
 	if type(ChatTypeInfo) ~= "table" then return true end
 	return ns.IsChatType(COUNTED, r, g, b, id)
 end
-ns.TabCounts = Counts -- (tests)
 
 local function Badge(frame)
 	if badges[frame] then return badges[frame], dots[frame] end

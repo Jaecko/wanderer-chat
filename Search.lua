@@ -105,7 +105,6 @@ local function Step(step)
 	at = (at - 1 + step) % #found + 1
 	Draw()
 end
-ns.SearchStep = Step -- (tests)
 
 local function Make()
 	window = Skin.CreateWindow("WandererChatSearch", "MEDIUM")

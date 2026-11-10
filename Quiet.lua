@@ -174,7 +174,6 @@ local function Filter(frame, _, text, sender, _, channel, _, _, _, _, channelNam
 	if type(frame) == "table" then frames[frame] = true end
 	return true
 end
-ns.QuietFilter = Filter -- (tests)
 
 -- Whispers from strangers ------------------------------------------------------------------------------------------
 
@@ -195,7 +194,6 @@ local function NoteWrote(_, _, _, target)
 	if not db.wrote[target] then ns.Prune(db.wrote, now, WROTE_FOR) end
 	db.wrote[target] = now
 end
-ns.QuietNoteWrote = NoteWrote -- (tests)
 
 -- Gold selling from a stranger: "spam", else false. A game master's whisper is never touched.
 local function DecideWhisper(text, sender, guid)
@@ -223,7 +221,6 @@ local function WhisperFilter(frame, _, text, sender, _, _, _, flags, _, _, _, _,
 	if type(frame) == "table" then frames[frame] = true end
 	return true
 end
-ns.QuietWhisperFilter = WhisperFilter -- (tests)
 
 -- The window of what was kept out -------------------------------------------------------------------------------
 

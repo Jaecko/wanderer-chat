@@ -723,7 +723,6 @@ local function RowFor(index)
 		else
 			Skin.Play("click")
 			ShowConversation(self.key)
-			ns.RefreshMessages()
 		end
 	end)
 	row:HookScript("OnEnter", function(self) Paint(self) end)
@@ -1005,8 +1004,13 @@ function ns.ToggleMessages(key, answer)
 	end
 	if not window then CreateWindow() end
 	if key then
-		window:Show()
-		ShowConversation(key)
+		-- (opening, it shows this one at once: the one shown last would be drawn first, and count as read)
+		if window:IsShown() then
+			ShowConversation(key)
+		else
+			current = key
+			window:Show()
+		end
 		if answer and input:IsShown() then input:SetFocus() end
 	else
 		window:SetShown(not window:IsShown())
@@ -1017,6 +1021,7 @@ end
 
 local SOUND_COOLDOWN = 3 -- seconds: a quick exchange rings once, as in the game
 local lastSound = 0
+local heldForFight = false -- a message came in a fight: the window opens when it ends
 
 local function Enabled()
 	return ns.On("messagesWindow")
@@ -1097,6 +1102,7 @@ local function OnMessage(event, text, name, guid, bnID)
 	elseif not me and not entry.fight then
 		talk.unread = (talk.unread or 0) + 1
 	end
+	if not me and not entry.fight and InCombatLockdown() then heldForFight = true end
 	-- Opened by a message from someone, never over a fight or a scene, never taking the keyboard.
 	if not me and not InCombatLockdown() and not W.InScene() and ns.On("messagesPopup") and not ns.Yields("whispers") then
 		if not (window and window:IsShown()) then
@@ -1109,7 +1115,7 @@ local function OnMessage(event, text, name, guid, bnID)
 	end
 	ns.RefreshMessages()
 	-- (the window closed: RefreshMessages stops before the minimap's count)
-	Launchers()
+	if not (window and window:IsShown()) then Launchers() end
 end
 
 -- The chat no longer shows them (they are in the window); only those the
@@ -1427,7 +1433,9 @@ function ns.InitMessages()
 		end
 		if event == "PLAYER_REGEN_ENABLED" then
 			-- Messages came during the fight: the window opens now, on the newest.
-			if Enabled() and ns.On("messagesPopup") and not ns.Yields("whispers") and ns.UnreadMessages() > 0 and not (window and window:IsShown()) then
+			local held = heldForFight
+			heldForFight = false
+			if held and Enabled() and ns.On("messagesPopup") and not ns.Yields("whispers") and ns.UnreadMessages() > 0 and not (window and window:IsShown()) then
 				if not window then CreateWindow() end
 				window.quiet = true
 				-- The most recent conversation with something unread.

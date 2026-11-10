@@ -150,6 +150,9 @@ function ns.Options(o)
 		local game = _G.Settings -- (the game's settings: this file's Settings() is the chat's)
 		local id = type(game) == "table" and game.SOCIAL_CATEGORY_ID
 		if not (id and game.OpenToCategory) then return end
+		-- (not with a controller: the game's settings opened from an addon block the game's own actions)
+		local util = _G.Wanderer and _G.Wanderer.Util
+		if util and util.UsingPad and util.UsingPad() then return end
 		o.CloseSettings()
 		pcall(game.OpenToCategory, id)
 	end))

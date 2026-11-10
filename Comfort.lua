@@ -547,12 +547,15 @@ function ns.InitComfort()
 	WatchGuildWindows()
 	Watch()
 	ns.RefreshComfort()
-	local since = 0
+	local since, awake = 0, false
 	local driver = CreateFrame("Frame")
 	driver:SetScript("OnUpdate", function(_, elapsed)
 		since = since + elapsed
 		local check = since >= CHECK_EVERY
 		if check then since = 0 end
+		-- (between two checks, only while a button shows or fades: else every one sleeps)
+		if not (check or awake) then return end
+		awake = false
 		for frame, button in pairs(buttons) do
 			if check then
 				button.wanted = button.enabled and frame:IsVisible() and (U.IsMouseOver(frame) or U.IsMouseOver(button)) and 1 or 0
@@ -563,7 +566,7 @@ function ns.InitComfort()
 				if wanted > 0 and not button:IsShown() then button:Show() end
 				local alpha = button.tween:Step(wanted, elapsed, FADE_IN, FADE_OUT)
 				if alpha ~= button:GetAlpha() then button:SetAlpha(alpha) end
-				if alpha <= 0 and wanted == 0 then button:Hide() end
+				if alpha <= 0 and wanted == 0 then button:Hide() else awake = true end
 			end
 		end
 	end)

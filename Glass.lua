@@ -34,7 +34,8 @@ local INK = { 0.055, 0.059, 0.071 } -- #0E0F12
 local WORDS = { 0.91, 0.894, 0.855 } -- #E8E4DA, the words of a line
 local VIOLET = { 0.886, 0.545, 0.91 } -- #E28BE8, a whisper's edge
 local GOLD = { 1, 0.82, 0 }
-local TAB_WORDS = { 0.8, 0.78, 0.72 } -- a tab not shown: soft, still readable on the ground
+local TAB_HOVER = { 1, 1, 1 }
+local TAB_WORDS = { 0.96, 0.95, 0.92 } -- a tab not shown: soft, still readable on the ground
 local TIME_HEX = "|cff7d796e" -- the hour, #8A8578 dimmed
 local MUTED_HEX = "|cff8a8578"
 local VEIL, VEIL_SOLID = 0.45, 0.55 -- the veil at rest: its darkness under the words, the part of the width before it fades
@@ -168,14 +169,10 @@ local function Blocked()
 	return false
 end
 
-local function Hex(r, g, b)
-	return ("|cff%02x%02x%02x"):format(Round((r or 1) * 255), Round((g or 1) * 255), Round((b or 1) * 255))
-end
-
 -- A chat's color ("GUILD", "CHANNEL2") as a color code, nil when the game does not say it.
 local function TypeHex(chatType)
 	local r, g, b = ns.ChatColor(chatType)
-	return r and Hex(r, g, b) or nil
+	return r and U.ColorCode(r, g, b) or nil
 end
 
 -- Widths -----------------------------------------------------------------------------------------------------------
@@ -395,6 +392,8 @@ local function Rewrite(frame, text, id)
 	if not line then
 		local motd = motdPattern and rest:match(motdPattern)
 		if motd and motd ~= "" then
+			-- (one kept from before, back with the old lines: not news, the guild's own comes after)
+			if ns.restoring then return nil, "drop" end
 			local db = ns.DB()
 			-- (once: the same message again, at the next login or in a second tab, goes)
 			if motdShown[motd] or db.glassMotd == motd then
@@ -425,7 +424,6 @@ local function Rewrite(frame, text, id)
 	return column .. hex .. tag .. "|r" .. Space(frame, width - Width(frame, tag)) .. head .. Space(frame, NAME_ROOM)
 		.. line.message, "player"
 end
-ns.GlassRewrite = Rewrite -- (tests)
 
 -- The line just added to a window's history (its newest), when it holds these words.
 local function Newest(frame, text)
@@ -493,7 +491,7 @@ local function Paint(tab, hovered)
 	local selected = FrameOfTab(tab) == Selected()
 	-- (light words on the dark ground, a shadow under them: the tab shown in gold, the others a soft light, full
 	-- light under the mouse; the game dims the tabs themselves already)
-	local c = selected and GOLD or (hovered and WORDS or TAB_WORDS)
+	local c = selected and GOLD or (hovered and TAB_HOVER or TAB_WORDS)
 	state.text:SetTextColor(c[1], c[2], c[3])
 	state.text:SetShadowOffset(1, -1)
 	state.text:SetShadowColor(0, 0, 0, 1)
@@ -518,6 +516,11 @@ local function StyleTab(tab)
 			line:SetPoint("TOPRIGHT", state.text, "BOTTOMRIGHT", 0, -3)
 			line:Hide()
 			state.line = line
+			state.plate = tab:CreateTexture(nil, "BACKGROUND")
+			state.plate:SetColorTexture(INK[1], INK[2], INK[3], 1)
+			state.plate:SetPoint("TOPLEFT", state.text, "TOPLEFT", -6, 3)
+			state.plate:SetPoint("BOTTOMRIGHT", state.text, "BOTTOMRIGHT", 6, -4)
+			state.plate:SetAlpha(0)
 		end
 		tab:HookScript("OnEnter", function(self) Paint(self, true) end)
 		tab:HookScript("OnLeave", function(self) Paint(self) end)
@@ -538,6 +541,12 @@ local function UnstyleTab(tab)
 	for _, key in ipairs(TAB_ART) do Untuck(tab[key]) end
 	Untuck(_G[(tab:GetName() or "") .. "Flash"])
 	local state = tabs[tab]
+	state.alpha = nil
+	for _, part in ipairs({ state.text, state.line }) do
+		if part.SetIgnoreParentAlpha then part:SetIgnoreParentAlpha(false) end
+		part:SetAlpha(1)
+	end
+	if state.plate then state.plate:SetAlpha(0) end
 	if state.line then state.line:Hide() end
 	if state.text and state.color and state.color[1] then state.text:SetTextColor(unpack(state.color)) end
 	local shadow = state.text and state.shadow
@@ -795,6 +804,8 @@ end
 local function MarkOf(d, line)
 	local text = line:GetText()
 	if U.IsSecret(text) then
+		-- (its mark of the line before taken away with the next drawing)
+		if d.mark ~= nil then d.alpha = -1 end
 		d.text, d.mark = nil, nil
 		return nil
 	end
@@ -828,9 +839,34 @@ local function HideDecor()
 	end
 end
 
+-- The game dims the tabs themselves even once they are there: their words and the gold line are read at full, and
+-- still come and go with the tabs.
+local TAB_FULL_AT = 0.2 -- the game's own dimmest tab: already read at full
+local TAB_PLATE = 0.4 -- darker under the words: 7:1 or better on any ground, measured, snow included
+local function TabWords()
+	for tab, state in pairs(tabs) do
+		if state.text and styled[tab] and state.text.SetIgnoreParentAlpha and tab.GetEffectiveAlpha then
+			local seen = Clean(Safe(tab.GetEffectiveAlpha, tab))
+			local alpha = math.min(1, (type(seen) == "number" and seen or 0) / TAB_FULL_AT)
+			if state.alpha ~= alpha then
+				state.alpha = alpha
+				for _, part in ipairs({ state.text, state.line }) do
+					part:SetIgnoreParentAlpha(true)
+					part:SetAlpha(alpha)
+				end
+				if state.plate then
+				state.plate:SetIgnoreParentAlpha(true)
+				state.plate:SetAlpha(alpha * TAB_PLATE)
+				end
+			end
+		end
+	end
+end
+
 -- Each frame: every line's veil and mark at the line's own opacity (the game fades each line), the veil away
 -- under the mouse (the ground then).
 local function DrawLines()
+	TabWords()
 	local frame = Selected()
 	local combat = active and frame and dressed[frame] and dressed[frame].combat or false
 	if combat ~= combatInFront then
