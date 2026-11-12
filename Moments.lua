@@ -163,7 +163,7 @@ end
 local function Step(elapsed)
 	for index = #cards, 1, -1 do
 		local card = cards[index]
-		if not card:IsMouseOver() then card.left = card.left - elapsed end
+		if not ((U.Hovered and U.Hovered(card)) or card:IsMouseOver()) then card.left = card.left - elapsed end
 		if card.stale and GetTime() > card.stale then card.left = math.min(card.left, 0) end
 		if card.sound then
 			if card.left > 0 then U.PlaySound(card.sound) end
@@ -234,15 +234,21 @@ local function GreetCard(kind, line)
 	else
 		title = (#names == 1 and L.BYE_ONE or L.BYE_SOME):format(ns.Names(names))
 	end
-	-- (written in the chat's line, sent by your own Enter)
+	-- (written in the chat's line, sent by your own Enter; pressed with the pad, the press sends them)
 	local function Say()
 		local words = Saying(kind, names)
-		if words and words ~= "" then ns.OpenChatLine(ns.SLASH.GUILD .. words) end
+		if not words or words == "" then return end
+		local send = C_ChatInfo and C_ChatInfo.SendChatMessage or SendChatMessage
+		if U.UsingPad and U.UsingPad() and send then
+			pcall(send, words, "GUILD")
+		else
+			ns.OpenChatLine(ns.SLASH.GUILD .. words)
+		end
 	end
 	return ns.Card({ key = kind, kind = kind, kicker = ns.Where(line), title = title,
 		body = #names == 1 and L.RP_TITLE_QUOTED:format(ns.Excerpt(line.text, EXCERPT)) or nil,
 		buttons = { { kind == "greet" and L.GREET_BUTTON or L.BYE_BUTTON, Say,
-			function() return L.SAY_DESC:format(Saying(kind, names)) end } },
+			function() return ((U.UsingPad and U.UsingPad()) and L.SAY_DESC_PAD or L.SAY_DESC):format(Saying(kind, names)) end } },
 		sound = Skin.SOUNDS.mark })
 end
 

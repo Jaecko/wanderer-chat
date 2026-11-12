@@ -248,6 +248,22 @@ local function LinkFilter(_, _, message, ...)
 	return false
 end
 
+-- Veiled lines -----------------------------------------------------------------------------------------
+-- A line the game veils as "may be inappropriate" comes with only a link to show it: unveiled before the
+-- chat draws it, so it comes with its own words (the game's own unveiling, the same as that link).
+
+local function UnveilFilter(_, _, _, ...)
+	local settings = Settings()
+	if not (settings and settings.uncensor) then return false end
+	local info = C_ChatInfo
+	local lineID = select(10, ...)
+	if not (info and info.IsChatLineCensored and info.UncensorChatLine) or type(lineID) ~= "number" then return false end
+	local ok, veiled = pcall(info.IsChatLineCensored, lineID)
+	if ok and veiled then pcall(info.UncensorChatLine, lineID) end
+	return false
+end
+ns.UnveilFilter = UnveilFilter -- (tests)
+
 -- A click on an address: shown ready to copy.
 local function OpenLink(link)
 	if type(link) ~= "string" or link:sub(1, #LINK) ~= LINK then return end
@@ -255,7 +271,10 @@ local function OpenLink(link)
 end
 
 local function WatchLinks()
-	for _, event in ipairs(LINK_EVENTS) do ns.AddFilter(event, LinkFilter) end
+	for _, event in ipairs(LINK_EVENTS) do
+		ns.AddFilter(event, UnveilFilter)
+		ns.AddFilter(event, LinkFilter)
+	end
 	ns.OnLink(OpenLink)
 end
 ns.OpenChatLink = OpenLink -- (tests)

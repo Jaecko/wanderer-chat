@@ -271,6 +271,13 @@ local function Make()
 	list:SetHyperlinksEnabled(true)
 	list:EnableMouseWheel(true)
 	list:SetScript("OnMouseWheel", function(self, delta) if delta > 0 then self:ScrollUp() else self:ScrollDown() end end)
+	-- (a controller's stick scrolls it too, whichever button is chosen)
+	if Skin.PadWindow then
+		Skin.PadWindow(window, { wheel = function(delta)
+			if delta > 0 then list:ScrollUp() else list:ScrollDown() end
+			return true
+		end })
+	end
 	list:SetScript("OnHyperlinkClick", function(_, link, text, button) if SetItemRef then SetItemRef(link, text, button) end end)
 	if ns.WatchNames then ns.WatchNames(list) end
 	window.list = list

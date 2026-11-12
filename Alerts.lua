@@ -53,10 +53,13 @@ function ns.InitHolder()
 	holder:SetMovable(true)
 	-- (read like the chat when the interface fades around it)
 	if holder.SetIgnoreParentAlpha then holder:SetIgnoreParentAlpha(true) end
-	W.Placeable({ key = "chatAlerts", label = function() return L.PLACE_LABEL end, frame = holder,
-		load = function() return ns.DB().alertsPlace end, save = function(spot) ns.DB().alertsPlace = spot end,
-		enabled = function() return ns.On() end,
-		default = function() return ns.DefaultPlace() end })
+	-- (placed with Wanderer's place mode, when it has one)
+	if W.Placeable then
+		W.Placeable({ key = "chatAlerts", label = function() return L.PLACE_LABEL end, frame = holder,
+			load = function() return ns.DB().alertsPlace end, save = function(spot) ns.DB().alertsPlace = spot end,
+			enabled = function() return ns.On() end,
+			default = function() return ns.DefaultPlace() end })
+	end
 	Place()
 	-- (a controller: its touchpad goes to the cards first, their buttons and their cross)
 	if W.Skin.PadNotice then W.Skin.PadNotice(holder) end

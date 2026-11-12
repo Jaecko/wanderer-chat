@@ -33,11 +33,12 @@ local Safe, Clean = U and U.Safe, U and U.Clean
 local INK = { 0.055, 0.059, 0.071 } -- #0E0F12
 local WORDS = { 0.91, 0.894, 0.855 } -- #E8E4DA, the words of a line
 local VIOLET = { 0.886, 0.545, 0.91 } -- #E28BE8, a whisper's edge
-local GOLD = { 1, 0.82, 0 }
+local GOLD = Skin.COLORS.gold
 local TAB_HOVER = { 1, 1, 1 }
 local TAB_WORDS = { 0.96, 0.95, 0.92 } -- a tab not shown: soft, still readable on the ground
-local TIME_HEX = "|cff7d796e" -- the hour, #8A8578 dimmed
-local MUTED_HEX = "|cff8a8578"
+-- (the palette's muted, as a color code: the hour and the quiet words)
+local MUTED = Skin.COLORS.muted or Skin.COLORS.text
+local MUTED_HEX = U.ColorCode(MUTED[1], MUTED[2], MUTED[3])
 local VEIL, VEIL_SOLID = 0.45, 0.55 -- the veil at rest: its darkness under the words, the part of the width before it fades
 local GROUND = 0.55 -- the ground under the mouse
 local BOX_GROUND = 0.85
@@ -287,7 +288,7 @@ local function TimeColumn(frame, stamp)
 	if not hour then return "" end
 	hour = strtrim(hour)
 	local width = math.max(TIME_COLUMN, Width(frame, hour) + MARGIN)
-	return TIME_HEX .. hour .. "|r" .. Space(frame, width - Width(frame, hour))
+	return MUTED_HEX .. hour .. "|r" .. Space(frame, width - Width(frame, hour))
 end
 
 -- Reading a line --------------------------------------------------------------------------------------------------
@@ -1182,7 +1183,6 @@ local function ShortChannel(frame, _, text, author, language, channel, ...)
 	if type(text) ~= "string" or text == "" then return false end
 	return false, text, author, language, short, ...
 end
-ns.ShortChannel = ShortChannel -- (tests)
 
 -- Start ---------------------------------------------------------------------------------------------------------------
 
@@ -1276,6 +1276,8 @@ local function Build()
 		if entry and entry.text then return { entry.name, { ns.Excerpt(entry.text, 160), Skin.COLORS.text[1], Skin.COLORS.text[2], Skin.COLORS.text[3] } } end
 	end, "ANCHOR_TOP")
 	pin:Hide()
+	-- (a controller: its touchpad goes to the whisper waiting, its answer and its cross)
+	if Skin.PadNotice then Skin.PadNotice(pin) end
 end
 
 function ns.InitGlass()

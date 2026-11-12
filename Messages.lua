@@ -391,17 +391,25 @@ local BUBBLE_BACKDROP = {
 }
 local BUBBLE_LOOK = {
 	them = { bg = { 0.05, 0.05, 0.07, 0.88 }, edge = { 0.55, 0.55, 0.6, 0.9 }, text = { 0.95, 0.93, 0.88 } },
-	me = { bg = { 0.2, 0.14, 0.04, 0.88 }, edge = { 1, 0.82, 0, 0.75 }, text = { 1, 0.95, 0.8 } },
+	me = { bg = { 0.2, 0.14, 0.04, 0.88 }, edge = { Skin.COLORS.gold[1], Skin.COLORS.gold[2], Skin.COLORS.gold[3], 0.75 },
+		text = Skin.COLORS.onGold or { 1, 0.96, 0.84 } },
 }
 
+-- How bright a color looks to the eye (the relative luminance of the web's contrast rules).
+local function Luminance(r, g, b)
+	local function Linear(c) return c <= 0.03928 and c / 12.92 or ((c + 0.055) / 1.055) ^ 2.4 end
+	return 0.2126 * Linear(r) + 0.7152 * Linear(g) + 0.0722 * Linear(b)
+end
+
 -- A side's look: the window's own, or built on the color chosen for it (its
--- border lighter, its text dark on a light color).
+-- border lighter, its text dark or light, whichever stands out more on it).
 local function Look(me)
 	local colors = ns.DB().colors
 	local chosen = type(colors) == "table" and colors[me and "me" or "them"]
 	if type(chosen) ~= "table" then return me and BUBBLE_LOOK.me or BUBBLE_LOOK.them end
 	local r, g, b = chosen[1] or 0, chosen[2] or 0, chosen[3] or 0
-	local light = 0.299 * r + 0.587 * g + 0.114 * b > 0.6
+	-- (dark text wins above a luminance near 0.18: (L + 0.05) / 0.05 against 1.05 / (L + 0.05))
+	local light = Luminance(r, g, b) > 0.18
 	return { bg = { r, g, b, 0.9 }, edge = { (r + 1) / 2, (g + 1) / 2, (b + 1) / 2, 0.9 },
 		text = light and { 0.08, 0.08, 0.08 } or { 0.97, 0.95, 0.9 } }
 end
@@ -450,12 +458,12 @@ local function Bubble()
 	if bubble.SetHyperlinksEnabled then pcall(bubble.SetHyperlinksEnabled, bubble, true) end
 	bubble:SetScript("OnHyperlinkClick", function(_, link, text, button) SetItemRef(link, text, button) end)
 	bubble:EnableMouse(true)
+	bubble.padTip = true -- (a controller reaches it too: its hour, and the stick scrolls the thread from there)
 	bubble:SetScript("OnEnter", function(self)
 		if not self.entry then return end
-		GameTooltip:SetOwner(self, self.entry.me and "ANCHOR_LEFT" or "ANCHOR_RIGHT")
 		local t = self.entry.t or time()
-		GameTooltip:AddLine(Day(t) .. " " .. Hour(t), 0.8, 0.8, 0.8)
-		GameTooltip:Show()
+		local soft = Skin.COLORS.soft
+		Skin.ShowTip(self, { { Day(t) .. " " .. Hour(t), soft[1], soft[2], soft[3] } }, self.entry.me and "ANCHOR_LEFT" or "ANCHOR_RIGHT")
 	end)
 	bubble:SetScript("OnLeave", function() GameTooltip:Hide() end)
 	bubbles[used.bubbles] = bubble
@@ -597,21 +605,22 @@ end
 -- from what the mouse is on, never over the conversation's name.
 local function ShowTip(owner, lines, point, relative, x, y)
 	if not (lines and lines[1]) then return end
-	GameTooltip:SetOwner(owner, "ANCHOR_NONE")
+	-- (the kit's tooltip: its first line white here, the others soft)
+	local soft, colored = Skin.COLORS.soft, {}
+	for index, line in ipairs(lines) do
+		colored[index] = index == 1 and { line, 1, 1, 1 } or { line, soft[1], soft[2], soft[3] }
+	end
+	if Skin.ShowTip(owner, colored, "ANCHOR_NONE") == false then return end
 	GameTooltip:ClearAllPoints()
 	GameTooltip:SetPoint(point or "LEFT", owner, relative or "RIGHT", x or 8, y or 0)
-	local soft = Skin.COLORS.soft
-	for index, line in ipairs(lines) do
-		if index == 1 then GameTooltip:AddLine(line, 1, 1, 1) else GameTooltip:AddLine(line, soft[1], soft[2], soft[3], true) end
-	end
-	GameTooltip:Show()
 end
 
 -- The kit's quiet "..." button, shown and hidden here (on the row shown, under the mouse); below: its tooltip
 -- under it.
-local function MoreButton(parent, onClick, below)
+-- (tip: its own words, read by a kit that knows opts.tip; an older one keeps the row's)
+local function MoreButton(parent, onClick, below, tip)
 	local more
-	more = Skin.RowMore(parent, function() onClick(more) end, nil, nil, { manual = true, below = below })
+	more = Skin.RowMore(parent, function() onClick(more) end, nil, nil, { manual = true, below = below, tip = tip })
 	more:ClearAllPoints()
 	return more
 end
@@ -623,7 +632,7 @@ end
 local ROW_PAD = 8
 local EDGE_WIDTH = 2
 local TEXT_LEFT = ROW_PAD + ROW_PORTRAIT + ROW_PAD
-local MORE_COLUMN = 26 -- (the kit's "..." column, Skin.ROW_MORE: read only once Wanderer is known recent enough)
+local MORE_COLUMN = Skin and rawget(Skin, "ROW_MORE") or 26 -- (the kit's "..." column, Skin.ROW_MORE: read only once Wanderer is known recent enough)
 local NAME_ROOM = LIST_WIDTH - TEXT_LEFT - MORE_COLUMN - 4
 
 -- Its look, as it is now: shown, under the mouse, or neither.
@@ -631,9 +640,10 @@ local function Paint(row)
 	local selected = row.key ~= nil and row.key == current
 	local hovered = (U.Hovered and U.Hovered(row) or row:IsMouseOver()) or (U.Hovered and U.Hovered(row.more) or row.more:IsMouseOver())
 	if selected then
-		row.background:SetColorTexture(1, 0.82, 0, hovered and 0.14 or 0.1)
+		local gold = Skin.COLORS.gold
+		row.background:SetColorTexture(gold[1], gold[2], gold[3], (Skin.CHOSEN or 0.1) + (hovered and (Skin.HOVER or 0.05) or 0))
 	else
-		row.background:SetColorTexture(1, 1, 1, hovered and 0.05 or 0)
+		row.background:SetColorTexture(1, 1, 1, hovered and (Skin.HOVER or 0.05) or 0)
 	end
 	row.edge:SetShown(selected)
 	row.more:SetShown(selected or hovered)
@@ -689,7 +699,7 @@ local function RowFor(index)
 	row.edge:SetWidth(EDGE_WIDTH)
 	row.edge:SetPoint("TOPLEFT", row, "TOPLEFT", 0, 0)
 	row.edge:SetPoint("BOTTOMLEFT", row, "BOTTOMLEFT", 0, 0)
-	row.edge:SetColorTexture(1, 0.82, 0, 0.9)
+	row.edge:SetColorTexture(Skin.COLORS.gold[1], Skin.COLORS.gold[2], Skin.COLORS.gold[3], 0.9)
 	row.portrait = Portrait(row, ROW_PORTRAIT)
 	row.portrait:SetPoint("LEFT", row, "LEFT", ROW_PAD, 0)
 	-- The "..." button, in its own column.
@@ -883,7 +893,7 @@ local function CreateWindow()
 	portrait = Portrait(window, PORTRAIT)
 	portrait:SetPoint("TOPLEFT", list, "TOPRIGHT", 16, 0)
 	-- The options of the person shown, at the top right of the conversation (the cross keeps its corner).
-	window.options = MoreButton(window, function(self) OpenMenu(self, current) end, true)
+	window.options = MoreButton(window, function(self) OpenMenu(self, current) end, true, L.MESSAGES_PERSON_HINT)
 	window.options:SetPoint("TOPRIGHT", window, "TOPRIGHT", -36, -margin)
 	window.options:Hide()
 	-- The window's settings (colors, popup, sound), as every window's cog, left of the "...".
@@ -891,7 +901,9 @@ local function CreateWindow()
 	window.cog:SetPoint("RIGHT", window.options, "LEFT", -4, 0)
 	header = Skin.Text(window, "GameTooltipHeaderText", "gold")
 	header:SetPoint("TOPLEFT", portrait, "TOPRIGHT", 12, -3)
-	header:SetPoint("RIGHT", window, "RIGHT", -36 - Skin.ROW_MORE - 26, 0)
+	-- (the heading's "?" left of the cog: what the window does)
+	local help = Skin.Help and Skin.Help(window, L.MESSAGES_HELP, "HEADING")
+	header:SetPoint("RIGHT", window, "RIGHT", -36 - Skin.ROW_MORE - 26 - (help and 20 or 0), 0)
 	if header.SetWordWrap then header:SetWordWrap(false) end
 	-- Who they are, under the name.
 	info = Skin.Text(window, "GameTooltipTextSmall", "soft")
@@ -904,12 +916,13 @@ local function CreateWindow()
 	person = CreateFrame("Button", nil, window)
 	person:SetPoint("TOPLEFT", portrait, "TOPLEFT")
 	person:SetPoint("BOTTOMRIGHT", info, "BOTTOMRIGHT")
-	person:RegisterForClicks("LeftButtonUp", "RightButtonUp") person.padRight = true
+	person:RegisterForClicks("LeftButtonUp", "RightButtonUp") -- (both open its menu: no top button)
 	person:SetScript("OnClick", function(self) OpenMenu(self, current) end)
 	Skin.Tooltip(person, L.MESSAGES_PERSON_HINT, "ANCHOR_BOTTOM")
 	person:Hide()
 	window.options:SetFrameLevel(person:GetFrameLevel() + 2)
 	if window.cog then window.cog:SetFrameLevel(person:GetFrameLevel() + 2) end
+	-- (the answer line is for a keyboard only, on purpose: writing needs one, as in the game's own chat)
 	input = Skin.CreateInput(window, "WandererChatMessagesInput", 255)
 	input:SetPoint("BOTTOMLEFT", list, "BOTTOMRIGHT", 16, 0)
 	input:SetPoint("BOTTOMRIGHT", window, "BOTTOMRIGHT", -margin, margin)
@@ -1011,7 +1024,8 @@ function ns.ToggleMessages(key, answer)
 			current = key
 			window:Show()
 		end
-		if answer and input:IsShown() then input:SetFocus() end
+		-- (a reply is written with a keyboard: the controller keeps its own navigation)
+		if answer and input:IsShown() and not (U.UsingPad and U.UsingPad()) then input:SetFocus() end
 	else
 		window:SetShown(not window:IsShown())
 	end
@@ -1157,7 +1171,7 @@ local function SetBubble(texture)
 end
 
 -- The yellow of the social button's figure.
-local BUBBLE_COLOR = { 1, 0.82, 0 }
+local BUBBLE_COLOR = Skin.COLORS.gold
 local GLOW_LOOPS = 3 -- times the button glows for a new whisper
 
 -- A new whisper: the button glows softly a few times, as the game's buttons do.
@@ -1334,7 +1348,7 @@ local function MakeChatButton()
 	button:SetPoint("TOPLEFT", social, "TOPRIGHT", 0, 0)
 	button:SetFrameStrata(social:GetFrameStrata())
 	button:SetFrameLevel(social:GetFrameLevel())
-	button:RegisterForClicks("LeftButtonUp", "RightButtonUp") button.padRight = true
+	button:RegisterForClicks("LeftButtonUp", "RightButtonUp") -- (both open the messages: no top button)
 	Dress(button, social)
 	local copies = CopyRegions(button, social)
 	-- The friends' icon becomes a speech bubble, at the same place and size.

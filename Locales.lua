@@ -247,6 +247,18 @@ local LOCALES = {
 		MESSAGES_DRAFT = "Draft:",
 		REPLY_COPY = "Copy the line",
 		COPY_LINE_PROMPT = "The line, ready to copy (Ctrl+C):",
+		MESSAGES_HELP = "Your whispers, as in a messaging app: the people on the left (search a name or a word), the conversation on the right, a line to answer below.\nA person's \"...\" (right click, or a controller's top button): pin, invite, add as friend, ignore, delete.",
+		SEARCH_HELP = "The lines of this tab: type words, the lines holding them are found in gold.\nOlder and Newer (Enter, Shift+Enter) go from one to the next.",
+		CARD_NOTE_DESC_PAD = "A private note on this player, kept for this character only.",
+		SEARCH_OLDER_DESC_PAD = "The line found before this one.",
+		SEARCH_NEWER_DESC_PAD = "The line found after this one.",
+		SEARCH_HELP_PAD = "The lines of this tab: type words, the lines holding them are found in gold.\nOlder and Newer go from one to the next.",
+		SAY_DESC_PAD = "A press says it in the guild chat at once: %s",
+		GREETINGS_DESC_PAD = "When someone greets your guild or says goodbye, a card offers an answer; a press on it says it at once.",
+		NAME_CARD_DESC_PAD = "With the mouse: rest it on a name in the chat to see at once who it is, their level, class, place and guild, and your own note.",
+		REPLIES_DESC_PAD = "With the mouse: right-click a name in the chat to greet that player, reply in the same chat, quote or copy the line.",
+		UNCENSOR = "Veiled messages shown at once",
+		UNCENSOR_DESC = "A message the game veils as possibly inappropriate appears with its own words straight away, with no link to click.",
 	},
 }
 ns.LOCALES = LOCALES

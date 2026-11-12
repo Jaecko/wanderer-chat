@@ -100,10 +100,11 @@ function ns.Options(o)
 	local mentionOn = Also("mention")
 	Under(o.Button(L.OTHER_NAMES, L.WORDS_BUTTON, L.OTHER_NAMES_DESC, WordsAsk("otherNames", L.OTHER_NAMES_PROMPT)), mention, mentionOn)
 	Under(Check("mentionCard", "MENTION_CARD"), mention, mentionOn)
-	Under(Check("greetings", "GREETINGS"))
+	-- (under the pad, a press on the card says it at once)
+	Under(Check("greetings", "GREETINGS")).descPad = L.GREETINGS_DESC_PAD
 	-- (the people in the chat: a card on a name, the answers in its menu)
-	Under(Check("nameCard", "NAME_CARD"))
-	Under(Check("replies", "REPLIES"))
+	Under(Check("nameCard", "NAME_CARD")).descPad = L.NAME_CARD_DESC_PAD
+	Under(Check("replies", "REPLIES")).descPad = L.REPLIES_DESC_PAD
 
 	-- The tabs: which ones in the button's card, made there.
 	o.Header(L.SECTION_TABS)
@@ -114,6 +115,7 @@ function ns.Options(o)
 	o.Header(L.SECTION_CHANNELS)
 	Under(Check("quietChannels", "QUIET_CHANNELS"))
 	Under(Check("quietWhispers", "QUIET_WHISPERS"))
+	Under(Check("uncensor", "UNCENSOR"))
 	Under(o.Button(L.HIDDEN_WORDS, L.WORDS_BUTTON, L.HIDDEN_WORDS_DESC, WordsAsk("hiddenWords", L.HIDDEN_WORDS_PROMPT)))
 	-- (what was kept out: the repeats, the gold selling, your hidden words, the strangers' whispers)
 	Under(o.Button(L.QUIET_TITLE, L.QUIET_SHOW_THEM, L.QUIET_SHOW_DESC, function()
@@ -145,7 +147,7 @@ function ns.Options(o)
 		return value <= ns.GAME_SIZE and L.CHAT_FONT_SIZE_GAME or ("%d"):format(value)
 	end, ns.ApplyFontSize))
 	-- (the class colors and the rest are the game's own options: shown where they are)
-	Under(o.Button(L.PANEL_GAME_OPTIONS, L.PANEL_GAME_OPTIONS_BUTTON, L.PANEL_GAME_OPTIONS_DESC, function()
+	local gameOptions = Under(o.Button(L.PANEL_GAME_OPTIONS, L.PANEL_GAME_OPTIONS_BUTTON, L.PANEL_GAME_OPTIONS_DESC, function()
 		if InCombatLockdown() then return end
 		local game = _G.Settings -- (the game's settings: this file's Settings() is the chat's)
 		local id = type(game) == "table" and game.SOCIAL_CATEGORY_ID
@@ -156,13 +158,21 @@ function ns.Options(o)
 		o.CloseSettings()
 		pcall(game.OpenToCategory, id)
 	end))
+	-- (not offered with a controller, whenever it is taken up)
+	local function UsingPad() return U and U.UsingPad and U.UsingPad() or false end
+	if type(gameOptions) == "table" then gameOptions.hidden = UsingPad end
 
 	-- Finer: where the alerts stand.
-	o.Header(L.SECTION_PRESENCE, { advanced = true })
-	Under(o.Button(L.PLACE, L.PLACE_BUTTON, L.PLACE_DESC, function()
-		o.CloseSettings()
-		W.PlaceMode()
-	end))
+	-- (placing is the mouse's: not offered with a controller, nor its section, whenever it is taken up)
+	if W.PlaceMode then
+		local presence = o.Header(L.SECTION_PRESENCE, { advanced = true })
+		if type(presence) == "table" then presence.hidden = UsingPad end
+		local place = Under(o.Button(L.PLACE, L.PLACE_BUTTON, L.PLACE_DESC, function()
+			o.CloseSettings()
+			W.PlaceMode()
+		end))
+		if type(place) == "table" then place.hidden = UsingPad end
+	end
 
 	-- Finer: the chat's comforts, writing and reading.
 	o.Header(L.SECTION_CHAT_COMFORT, { advanced = true })

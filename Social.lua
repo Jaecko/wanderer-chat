@@ -83,7 +83,6 @@ local function Meet(unit)
 	metByName[name] = guid
 	if metCount > MET_KEPT then Forget() end
 end
-ns.Meet = Meet -- (tests)
 
 -- Who someone is -----------------------------------------------------------------------------------------------
 
@@ -294,14 +293,14 @@ local function Card()
 	if card.note.text.SetWordWrap then card.note.text:SetWordWrap(false) end
 	local hover = card.note:CreateTexture(nil, "HIGHLIGHT")
 	hover:SetAllPoints()
-	hover:SetColorTexture(1, 1, 1, 0.05)
+	hover:SetColorTexture(1, 1, 1, Skin.HOVER or 0.05)
 	card.note:SetScript("OnClick", function() Skin.Play("click") EditNote() end)
-	Skin.Tooltip(card.note, function() return { L.CARD_NOTE, { L.CARD_NOTE_DESC, Skin.COLORS.text[1], Skin.COLORS.text[2], Skin.COLORS.text[3] } } end, "ANCHOR_BOTTOM")
+	Skin.Tooltip(card.note, function() return { L.CARD_NOTE, { (U.UsingPad and U.UsingPad()) and L.CARD_NOTE_DESC_PAD or L.CARD_NOTE_DESC, Skin.COLORS.text[1], Skin.COLORS.text[2], Skin.COLORS.text[3] } } end, "ANCHOR_BOTTOM")
 	-- A right click on the card: your note.
 	card:SetScript("OnMouseUp", function(_, button) if button == "RightButton" then EditNote() end end)
-	-- Kept while the mouse is on its name or on it, a moment more after.
+	-- Kept while the mouse is on its name or on it, or the controller in it; a moment more after.
 	card:SetScript("OnUpdate", function(self, elapsed)
-		if overLink or self:IsMouseOver() then
+		if overLink or self:IsMouseOver() or (Skin.PadHolds and Skin.PadHolds(self)) then
 			self.away = 0
 			return
 		end
@@ -406,9 +405,11 @@ local function Fill(who)
 end
 
 -- Beside the mouse, above it and to its right (the chat is low on the screen; the screen's edges hold it in).
+-- Under a controller: beside the chosen element (the kit's own point, when it has one).
 local function Place()
 	card:SetScale(Skin.Scale())
-	local x, y = GetCursorPosition()
+	local x, y
+	if Skin.CursorPoint then x, y = Skin.CursorPoint() else x, y = GetCursorPosition() end
 	local scale = card:GetEffectiveScale()
 	if not (x and y and scale and scale > 0) then return end
 	card:ClearAllPoints()
@@ -422,6 +423,8 @@ local function Open(who)
 	Fill(who)
 	Place()
 	card.away = 0
+	-- (a controller: it waits to be chosen, never taking the cross by itself)
+	card.quiet = true
 	card:Show()
 	if card.Raise then card:Raise() end
 end
@@ -457,7 +460,6 @@ local function OnLinkLeave()
 	overLink = false
 	pending = nil
 end
-ns.NameLinkEnter, ns.NameLinkLeave = OnLinkEnter, OnLinkLeave -- (tests)
 ns.NameCard = function() return card end -- (tests)
 
 -- A plain left click on a name, the private messages window on (and no other addon keeping the whispers): your

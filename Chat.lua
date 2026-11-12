@@ -29,6 +29,7 @@ ns.DEFAULTS = {
 	copyButton = true, -- a discreet copy button in the corner of the chat
 	keepLog = true, -- each tab keeps its last lines from one session to the next
 	links = true, -- web addresses in the chat become links, ready to copy
+	uncensor = true, -- a line the game veils as "may be inappropriate" shown with its words, no link to click
 	fontSize = 16, -- every chat window at this size; the lowest step: the game's own (set tab by tab)
 	-- Private messages in their own window: asked for.
 	messagesWindow = true,

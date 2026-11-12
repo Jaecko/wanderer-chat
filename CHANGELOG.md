@@ -1,15 +1,8 @@
-# Wanderer Chat 1.3.7
-
-Needs Wanderer 1.4.37 or later.
+# Wanderer Chat 1.3.13
 
 ### New
-- With a controller, the touchpad goes to the cards beside the chat (a guild member who wrote, your name said): their buttons and their cross.
+- Veiled messages shown at once: a message the game veils as possibly inappropriate appears with its own words, with no link to click (on by default, in the public channels section).
 
 ### Changed
-- Tab names are now readable on any background.
-- Lighter: the chat's buttons rest while nothing shows or fades.
-
-### Fixed
-- An old guild message of the day no longer comes back at login.
-- Whisper windows no longer reopen after every fight for an old unread whisper.
-- Alerts stay hidden during fights, as intended.
+- A finer look across the family: one palette for every color, clearer contrast on dark windows and on parchment, the same words in every language.
+- Controller: no keyboard numbers or mouse words shown where the controller has its own way; settings that need a mouse or a keyboard say so.

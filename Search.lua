@@ -112,9 +112,20 @@ local function Make()
 	Skin.Dress(window, { "CENTER", UIParent, "CENTER", 0, 60 }, "chatSearch")
 	local _, title, m = Skin.Header(window, "Wanderer", L.SEARCH_TITLE, { settings = "ext:chat" })
 	title:SetPoint("RIGHT", window, "RIGHT", -(m + 60), 0)
+	-- (the heading's "?": how the search goes)
+	local help = Skin.Help and Skin.Help(window, L.SEARCH_HELP, "HEADING")
+	if help then
+		help:HookScript("OnEnter", function(self)
+			if (U.UsingPad and U.UsingPad()) then Skin.ShowTip(self, L.SEARCH_HELP_PAD, "ANCHOR_BOTTOM") end
+		end)
+	end
 	-- The words to find, the count, the older and the newer.
-	window.newer = Skin.GlyphButton(window, "down", 14, { L.SEARCH_NEWER, L.SEARCH_NEWER_DESC }, function() Step(1) end)
-	window.older = Skin.GlyphButton(window, "up", 14, { L.SEARCH_OLDER, L.SEARCH_OLDER_DESC }, function() Step(-1) end)
+	window.newer = Skin.GlyphButton(window, "down", 14, function()
+		return { L.SEARCH_NEWER, (U.UsingPad and U.UsingPad()) and L.SEARCH_NEWER_DESC_PAD or L.SEARCH_NEWER_DESC }
+	end, function() Step(1) end)
+	window.older = Skin.GlyphButton(window, "up", 14, function()
+		return { L.SEARCH_OLDER, (U.UsingPad and U.UsingPad()) and L.SEARCH_OLDER_DESC_PAD or L.SEARCH_OLDER_DESC }
+	end, function() Step(-1) end)
 	window.input = Skin.CreateInput(window, "WandererChatSearchInput", QUERY_MOST, {
 		hint = L.SEARCH_HINT,
 		onChange = Search,
@@ -141,6 +152,13 @@ local function Make()
 	list:SetMaxLines(MOST)
 	list:EnableMouseWheel(true)
 	list:SetScript("OnMouseWheel", function(self, delta) if delta > 0 then self:ScrollUp() else self:ScrollDown() end end)
+	-- (a controller's stick scrolls it too, whichever button is chosen)
+	if Skin.PadWindow then
+		Skin.PadWindow(window, { wheel = function(delta)
+			if delta > 0 then list:ScrollUp() else list:ScrollDown() end
+			return true
+		end })
+	end
 	window.list = list
 	window.empty = Skin.Text(window, "GameTooltipText", "muted")
 	window.empty:SetPoint("CENTER", list, "CENTER")
@@ -159,7 +177,10 @@ function ns.OpenSearch(frame)
 	window:Show()
 	Skin.Get(window):Layout()
 	Search()
-	window.input:SetFocus()
-	window.input:HighlightText()
+	-- (with a controller nothing is typed: the field is not taken)
+	if not (U.UsingPad and U.UsingPad()) then
+		window.input:SetFocus()
+		window.input:HighlightText()
+	end
 end
 ns.SearchFound = function() return found, at, lines end -- (tests)
