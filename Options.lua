@@ -100,8 +100,6 @@ function ns.Options(o)
 	local mentionOn = Also("mention")
 	Under(o.Button(L.OTHER_NAMES, L.WORDS_BUTTON, L.OTHER_NAMES_DESC, WordsAsk("otherNames", L.OTHER_NAMES_PROMPT)), mention, mentionOn)
 	Under(Check("mentionCard", "MENTION_CARD"), mention, mentionOn)
-	-- (under the pad, a press on the card says it at once)
-	Under(Check("greetings", "GREETINGS")).descPad = L.GREETINGS_DESC_PAD
 	-- (the people in the chat: a card on a name, the answers in its menu)
 	Under(Check("nameCard", "NAME_CARD")).descPad = L.NAME_CARD_DESC_PAD
 	Under(Check("replies", "REPLIES")).descPad = L.REPLIES_DESC_PAD

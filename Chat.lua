@@ -36,9 +36,9 @@ ns.DEFAULTS = {
 	messagesHideInChat = true, -- and the chat no longer shows them
 	messagesSound = true, -- the game's own whisper sound, which the chat no longer plays for them
 	messagesMoved = false, -- (the settings of the window, once read from Wanderer's)
-	-- The alerts, beside the chat: your name said where you could not read it, a greeting to answer (groups
+	-- The alerts, beside the chat: your name said where you could not read it (groups
 	-- sought and your words: asked for).
-	mentionCard = true, greetings = true,
+	mentionCard = true,
 	-- In the chat itself.
 	mention = true, -- the lines that name you in gold, their tab marked
 	mentionChannels = false, -- and in the public channels (General, Trade...)
