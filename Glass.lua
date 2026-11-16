@@ -81,6 +81,10 @@ local TAGS = { GUILD = "GUILD", OFFICER = "OFFICER", PARTY = "PARTY", PARTY_LEAD
 	WHISPER = "WHISPER", WHISPER_INFORM = "WHISPER", BN_WHISPER = "WHISPER", BN_WHISPER_INFORM = "WHISPER",
 	SAY = "SAY", YELL = "YELL" }
 local INFORM = { WHISPER_INFORM = true, BN_WHISPER_INFORM = true }
+-- The leader's words and the raid warning keep the game's own mark ("[Raid Leader]"), in the chat's color.
+local MARKED = { PARTY_LEADER = true, RAID_LEADER = true, INSTANCE_CHAT_LEADER = true, RAID_WARNING = true }
+-- Words that keep the chat's own color (a warning, a yell), not the quiet light of the others.
+local OWN_COLOR = { RAID_WARNING = true, YELL = true }
 local TAG_KEYS = { "GUILD", "OFFICER", "PARTY", "RAID", "INSTANCE", "WHISPER", "SAY", "YELL" }
 
 local active, waiting = false, false
@@ -265,7 +269,10 @@ local function StampPattern(format)
 end
 
 local function Stamp(text)
-	for _, format in ipairs({ _G.CHAT_TIMESTAMP_FORMAT, Clean(Safe(GetCVar, "showTimestamps")) }) do
+	-- (the game's option first: this game writes the hour with it, CHAT_TIMESTAMP_FORMAT no longer exists here; a
+	-- list starting with a missing one was read as empty, so no line with an hour was ever read, the guild's
+	-- included)
+	for _, format in ipairs({ Clean(Safe(GetCVar, "showTimestamps")) or false, _G.CHAT_TIMESTAMP_FORMAT or false }) do
 		local pattern = StampPattern(format)
 		if pattern then
 			local stamp = text:match(pattern)
@@ -347,7 +354,7 @@ local function PlayerLink(text)
 	return from, close + 1, text:sub(from + 2, targetEnd - 1), text:sub(targetEnd + 2, close - 1)
 end
 
--- A line as the game wrote it, read: { chatType, number, flag, target, display, message, pre }, else nil.
+-- A line as the game wrote it, read: { chatType, number, flag, target, display, message, pre, link }, else nil.
 local function Read(rest, id)
 	local from, to, target, display = PlayerLink(rest)
 	if not from then return nil end
@@ -370,7 +377,8 @@ local function Read(rest, id)
 			if flag then
 				if chatType == "CHANNEL" then number = channel:match("^|Hchannel:%a+:(%d+)") or number end
 				return { chatType = chatType, number = number, flag = flag, target = target,
-					display = display:match("^%[(.*)%]$") or display, message = message, pre = pre }
+					display = display:match("^%[(.*)%]$") or display, message = message, pre = pre,
+					link = (channel .. (pre or "")):match("|Hchannel:([^|]*)|h") }
 			end
 		end
 	end
@@ -384,8 +392,8 @@ ns.GlassRead = Read -- (tests)
 local motdPattern
 local motdShown = {} -- this session: message -> true
 
--- A line as Glass shows it: its new words, its kind ("player", "motd", "drop") and who said it (for the lines
--- together), or nil to leave it as the game made it.
+-- A line as Glass shows it: its new words, its kind ("player", "loud" for a warning or a yell keeping its color,
+-- "motd", "drop") and who said it (for the lines together), or nil to leave it as the game made it.
 local function Rewrite(frame, text, id)
 	local stamp, rest = Stamp(text)
 	local column = TimeColumn(frame, stamp)
@@ -420,11 +428,16 @@ local function Rewrite(frame, text, id)
 	if not name:find("^|c") and not name:find("^|K") then name = hex .. name .. "|r" end
 	local head = line.flag .. "|H" .. line.target .. "|h" .. name .. "|h"
 	if INFORM[chatType] then head = MUTED_HEX .. strtrim(line.pre) .. "|r " .. head end
+	if MARKED[chatType] and strtrim(line.pre or "") ~= "" then head = hex .. strtrim(line.pre) .. "|r " .. head end
 	local width = TagColumn(frame)
+	-- (the letter keeps the game's channel link: a click writes in that chat, a right click its menu)
+	local shown = hex .. tag .. "|r"
+	if line.link then shown = "|Hchannel:" .. line.link .. "|h" .. shown .. "|h" end
 	-- (every line keeps its letter and its name: a line fades on its own, the one above it may be gone)
-	return column .. hex .. tag .. "|r" .. Space(frame, width - Width(frame, tag)) .. head .. Space(frame, NAME_ROOM)
-		.. line.message, "player"
+	return column .. shown .. Space(frame, width - Width(frame, tag)) .. head .. Space(frame, NAME_ROOM)
+		.. line.message, OWN_COLOR[chatType] and "loud" or "player"
 end
+ns.GlassRewrite = Rewrite -- (tests)
 
 -- The line just added to a window's history (its newest), when it holds these words.
 local function Newest(frame, text)
@@ -439,26 +452,43 @@ local function Dirty(frame)
 	if frame.MarkDisplayDirty then Safe(frame.MarkDisplayDirty, frame) end
 end
 
+-- A line taken out of its window. The game asks the question with the line unpacked (its words, colors, then the
+-- rest), never the line itself: a question about the line itself was never true, nothing went.
+local function Drop(frame, entry)
+	if not frame.RemoveMessagesByPredicate then return end
+	local words = entry.message
+	Safe(frame.RemoveMessagesByPredicate, frame, function(each)
+		return each == entry or (type(each) == "string" and not U.IsSecret(each) and each == words)
+	end)
+end
+ns.GlassDrop = Drop -- (tests)
+
 -- A line added to a window of the chat: its words again, before it is drawn.
 local function Added(frame, text, _, _, _, id)
+	-- (a guild line followed for the dump: the window it came to, and whether glass reads it)
+	local guild = type(text) == "string" and not U.IsSecret(text) and ns.Trace
+		and (text:find("|Hchannel:GUILD", 1, true) or text:find("|Hchannel:OFFICER", 1, true)) and true or false
+	if guild then ns.Trace(("added to %s, glass %s"):format(tostring(frame:GetName()), tostring(active and dressed[frame] ~= nil))) end
 	if not (active and dressed[frame] and not dressed[frame].combat) then return end
 	if type(text) ~= "string" or U.IsSecret(text) then return end
 	-- (gone up in the lines: one more to come back to)
 	local offset = Clean(Safe(frame.GetScrollOffset, frame))
 	if type(offset) == "number" and offset > 0 then unseen[frame] = (unseen[frame] or 0) + 1 end
 	local entry = Newest(frame, text)
-	if not entry then return end
-	local new, kind = Rewrite(frame, text, id)
-	if kind == "drop" then
-		if frame.RemoveMessagesByPredicate then Safe(frame.RemoveMessagesByPredicate, frame, function(each) return each == entry end) end
+	if not entry then
+		if guild then ns.Trace("  not the window's newest line: left as it is") end
 		return
 	end
+	local new, kind = Rewrite(frame, text, id)
+	if guild then ns.Trace(("  read as %s"):format(tostring(kind))) end
+	if kind == "drop" then return Drop(frame, entry) end
 	if not new then return end
 	originals[entry] = { message = entry.message, r = entry.r, g = entry.g, b = entry.b, timestamp = entry.timestamp }
 	entry.message = new
-	if kind == "player" then
+	if kind == "player" or kind == "loud" then
+		-- (a warning or a yell keeps the chat's own color)
 		local dim = ns.restoring and LOG_DIM or 1
-		entry.r, entry.g, entry.b = WORDS[1] * dim, WORDS[2] * dim, WORDS[3] * dim
+		if kind == "player" then entry.r, entry.g, entry.b = WORDS[1] * dim, WORDS[2] * dim, WORDS[3] * dim end
 		-- A line naming you stays a minute.
 		local fading, visible = Safe(frame.GetFading, frame), Clean(Safe(frame.GetTimeVisible, frame))
 		if fading and type(visible) == "number" and visible < NAMED_HOLD and type(entry.timestamp) == "number"
@@ -1065,7 +1095,7 @@ local function Deactivate()
 	if not active then return end
 	for frame in pairs(dressed) do Undress(frame) end
 	SetDown()
-	HideDecor(decorFrame)
+	HideDecor()
 	decorFrame = nil
 	if GeneralDockManager then GeneralDockManager:SetAlpha(dockAlpha or 1) end
 	-- (anything still off, put back)
@@ -1085,6 +1115,45 @@ local function Wanted()
 end
 
 function ns.GlassActive() return active end
+
+-- For the guild trace (Chat.lua): each window holding these words, in its history and among the lines drawn.
+function ns.GlassLook(words)
+	if type(words) ~= "string" or U.IsSecret(words) or words == "" then return "?" end
+	local probe = words:sub(1, 24)
+	local found = {}
+	for index = 1, (NUM_CHAT_WINDOWS or 10) do
+		local frame = _G["ChatFrame" .. index]
+		if frame and frame.AddMessage then
+			local inHistory, newestAt = false, nil
+			local buffer = frame.historyBuffer
+			if type(buffer) == "table" and buffer.GetEntryAtIndex then
+				for at = 1, 8 do
+					local entry = Safe(buffer.GetEntryAtIndex, buffer, at)
+					if type(entry) == "table" and type(entry.message) == "string" and not U.IsSecret(entry.message)
+						and entry.message:find(probe, 1, true) then
+						inHistory, newestAt = true, at
+						break
+					end
+				end
+			end
+			local drawn = "no"
+			for _, line in ipairs(Lines(frame)) do
+				local text = Safe(line.GetText, line)
+				if type(text) == "string" and not U.IsSecret(text) and text:find(probe, 1, true) then
+					drawn = ("shown %s alpha %.2f"):format(tostring(line:IsShown()), Clean(Safe(line.GetAlpha, line)) or -1)
+					break
+				end
+			end
+			if inHistory or drawn ~= "no" or (frame.IsVisible and frame:IsVisible()) then
+				found[#found + 1] = ("%s[visible %s, glass %s, history %s, drawn %s, offset %s, fading %s/%s]"):format(
+					frame:GetName() or index, tostring(frame:IsVisible()), tostring(active and dressed[frame] ~= nil),
+					inHistory and ("#" .. newestAt) or "no", drawn, tostring(Clean(Safe(frame.GetScrollOffset, frame))),
+					tostring(Safe(frame.GetFading, frame)), tostring(Clean(Safe(frame.GetTimeVisible, frame))))
+			end
+		end
+	end
+	return #found > 0 and table.concat(found, " ") or "in no window"
+end
 -- (tests: its pieces, a line's veil and mark)
 -- (/wchat dump over time: one short line per chat line, how the game fades it and how its veil follows)
 function ns.GlassSample(at)

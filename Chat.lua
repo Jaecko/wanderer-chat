@@ -21,9 +21,8 @@ ns.DEFAULTS = {
 	lookReset2 = false, -- (glass made the display of every profile once, in the glass round)
 	glassFade = 20, -- in glass, seconds a line stays before it fades (0: always)
 	shortChannels = true, -- "[2. Trade - City]" as "[2. Trade]"
-	-- The tabs "Create the chat tabs" makes, and what came on each while it was not shown.
+	-- The tabs "Create the chat tabs" makes.
 	group = true, guild = true, whispers = true, channels = true,
-	unread = true,
 	-- The chat's comforts.
 	arrowHistory = true, -- Up and Down bring back your sent messages, kept between sessions
 	copyButton = true, -- a discreet copy button in the corner of the chat
@@ -285,8 +284,38 @@ end
 -- The last one to speak to you or near you, for the key that answers.
 ns.last = nil
 
+-- The guild's lines followed, for /wchat dump (a guild line said missing): sent, heard, filtered, added to a window;
+-- this session's last few only, written with the dump. Words for a developer: never translated.
+local TRACE_MOST = 80
+local trace = {}
+function ns.Trace(words)
+	trace[#trace + 1] = ("%s %.1f %s"):format(date("%H:%M:%S"), GetTime(), words)
+	if #trace > TRACE_MOST then table.remove(trace, 1) end
+	-- (kept as it goes: written at the next /reload or logout, no command needed)
+	if type(WandererChatAccountDB) == "table" then WandererChatAccountDB.guildTrace = trace end
+end
+function ns.TraceLines() return U.Copy(trace) end
+
+-- Each window looked at a little after a line of yours (sent, or heard back from the game: the look never hangs on
+-- the sending being heard), once for the same words.
+local lookedAt, lookedWords = -math.huge, nil
+function ns.TraceLook(text)
+	if not ns.GlassLook or type(text) ~= "string" or U.IsSecret(text) then return end
+	if text == lookedWords and GetTime() - lookedAt < 3 then return end
+	lookedAt, lookedWords = GetTime(), text
+	for _, after in ipairs({ 0.5, 2, 6 }) do
+		C_Timer.After(after, function() ns.Trace(("look +%ss: %s"):format(after, ns.GlassLook(text))) end)
+	end
+end
+
 local function OnEvent(_, event, text, sender, _, channel, _, flags, _, _, baseChannel, _, lineID, guid, bnID)
 	local kind = ns.KINDS[event]
+	if ns.GUILD[kind] then
+		local mine = Clean(guid) ~= nil and Clean(guid) == Clean(Safe(UnitGUID, "player"))
+		ns.Trace(("heard %s line %s, on %s, secret %s, yours %s"):format(event, tostring(Clean(lineID)), tostring(ns.On()),
+			tostring(U.IsSecret(text)), tostring(mine)))
+		if mine then ns.TraceLook(text) end
+	end
 	if not kind or not ns.On() or U.IsSecret(text) or U.IsSecret(sender) then return end
 	-- (gold selling whispered by a stranger: kept out, never heard; Quiet.lua)
 	if kind == "whisper" and ns.HushedWhisper and ns.HushedWhisper(text, sender, lineID, guid, flags) then return end
@@ -383,6 +412,58 @@ function ns.OnLink(listener)
 	linkListeners[#linkListeners + 1] = listener
 end
 
+-- A link clicked in one of Wanderer's own windows (the messages, the hidden lines). Never the game's SetItemRef from
+-- here: called by an addon, the game forbids part of what it does and blames the addon. Shift: in the answer line being written, else the chat's box;
+-- Ctrl: tried on; a name: Wanderer's own click (ns.WatchNames); an addon's link: its listeners; an item, a spell,
+-- a quest...: the game's link tooltip, a second click on the same one closes it.
+local TOOLTIP_LINKS = { item = true, spell = true, quest = true, enchant = true, achievement = true, talent = true,
+	currency = true, currencyinfo = true, trade = true, outfit = true }
+function ns.ClickLink(link, text)
+	if type(link) ~= "string" or U.IsSecret(link) then return end
+	local kind = link:match("^([^:]+)")
+	if kind == "player" or kind == "BNplayer" then return end
+	if IsShiftKeyDown() then
+		-- (the messages' answer line first, when you are writing in it)
+		if ns.MessagesInsert and ns.MessagesInsert(text) then return end
+		if type(text) == "string" and U.ChatInsert then U.ChatInsert(text) end
+		return
+	end
+	if IsControlKeyDown() and (kind == "item" or kind == "outfit") then
+		local dress = _G.DressUpLink or _G.DressUpItemLink
+		if dress then Safe(dress, type(text) == "string" and text or link) end
+		return
+	end
+	if kind == "addon" then return HeardLink(link) end
+	-- (what only the game may open, an invitation to a community or a guild...: the line given to the chat's window,
+	-- where its click is the game's own)
+	if not TOOLTIP_LINKS[kind] then
+		local frame = _G.DEFAULT_CHAT_FRAME or _G.ChatFrame1
+		if frame and frame.AddMessage and type(text) == "string" then frame:AddMessage(L.LINK_IN_CHAT:format(text)) end
+		return
+	end
+	local tip = _G.ItemRefTooltip
+	if not (tip and tip.SetHyperlink) then return end
+	if tip:IsShown() and tip.wandererLink == link then
+		tip:Hide()
+		return
+	end
+	-- (placed by Wanderer, beside the mouse: the game places this tooltip only through its own SetItemRef)
+	tip:SetOwner(UIParent, "ANCHOR_NONE")
+	tip:ClearAllPoints()
+	local x, y = ((W.Skin and W.Skin.CursorPoint) or GetCursorPosition)()
+	local scale = UIParent:GetEffectiveScale()
+	if x and y and scale and scale > 0 then
+		tip:SetPoint("BOTTOMLEFT", UIParent, "BOTTOMLEFT", x / scale + 16, y / scale + 16)
+	else
+		tip:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
+	end
+	if tip.SetClampedToScreen then tip:SetClampedToScreen(true) end
+	if pcall(tip.SetHyperlink, tip, link) then
+		tip.wandererLink = link
+		tip:Show()
+	end
+end
+
 -- A chat's color ("GUILD", "CHANNEL2"): r, g, b, nil when the game does not say it.
 function ns.ChatColor(chatType)
 	local info = type(ChatTypeInfo) == "table" and chatType and ChatTypeInfo[chatType]
@@ -446,8 +527,29 @@ end
 BINDING_HEADER_WANDERERCHAT = "Wanderer Chat"
 BINDING_NAME_WANDERERCHAT_MESSAGES = L.BINDING_MESSAGES
 BINDING_NAME_WANDERERCHAT_REPLY = L.BINDING_REPLY
--- (Wanderer's own name for it, before the chat moved: a key chosen then still opens the messages)
+-- (Wanderer's own name for it, before the chat moved: a key chosen then still opens the messages, hidden from the
+-- list; MoveFormerKeys gives that key to the one listed)
 BINDING_NAME_WANDERER_MESSAGES = L.BINDING_MESSAGES_FORMER
+
+-- A key still on the former binding: moved to the listed one, out of a fight, so the list shows it once.
+local function MoveFormerKeys()
+	if not (GetBindingKey and SetBinding and SaveBindings) then return end
+	if InCombatLockdown and InCombatLockdown() then
+		local wait = CreateFrame("Frame")
+		wait:RegisterEvent("PLAYER_REGEN_ENABLED")
+		wait:SetScript("OnEvent", function(self)
+			self:UnregisterAllEvents()
+			MoveFormerKeys()
+		end)
+		return
+	end
+	local keys = { Safe(GetBindingKey, "WANDERER_MESSAGES") }
+	local moved = false
+	for _, key in ipairs(keys) do
+		if type(key) == "string" and key ~= "" and Safe(SetBinding, key, "WANDERERCHAT_MESSAGES") then moved = true end
+	end
+	if moved then Safe(SaveBindings, GetCurrentBindingSet and GetCurrentBindingSet() or 1) end
+end
 
 local DUMP_DELAY = 8 -- seconds before /wchat dump looks at everything (the fading followed for 40)
 
@@ -455,12 +557,16 @@ local DUMP_DELAY = 8 -- seconds before /wchat dump looks at everything (the fadi
 local function Start()
 	MoveIn()
 	MoveSettings()
+	MoveFormerKeys()
 	SLASH_WANDERERCHAT1 = "/wchat"
 	SlashCmdList.WANDERERCHAT = function(words)
 		-- (/wchat dump: what is drawn over the chat, written for a look after a /reload)
 		-- (taken a few seconds later: the line to write closed, the mouse away, the chat back at rest as it fades)
 		if type(words) == "string" and strtrim(words):lower() == "dump" and ns.GlassDump then
 			W.Print(L.DUMP_SOON:format(40))
+			-- (the guild's lines followed so far: written at once, before anything new comes)
+			WandererChatAccountDB = type(WandererChatAccountDB) == "table" and WandererChatAccountDB or {}
+			WandererChatAccountDB.guildTrace = ns.TraceLines()
 			-- (then a look every 2 seconds for 40 seconds: the lines fading, as they fade)
 			local samples = {}
 			for at = 0, 40, 2 do
@@ -480,6 +586,25 @@ local function Start()
 		if type(words) == "string" and strtrim(words):lower() == "search" and ns.OpenSearch then return ns.OpenSearch() end
 		ns.ToggleMessages()
 	end
+	-- (the guild's lines followed for the dump: what you send there, and each window's filters reached; first of ours)
+	local function Sent(text, chatType)
+		if (chatType == "GUILD" or chatType == "OFFICER") and type(text) == "string" and not U.IsSecret(text) then
+			ns.Trace(("sent %s, %d letters"):format(chatType, #text))
+			ns.TraceLook(text)
+		end
+	end
+	local modern = C_ChatInfo and type(C_ChatInfo.SendChatMessage) == "function" and C_ChatInfo.SendChatMessage or nil
+	if modern then hooksecurefunc(C_ChatInfo, "SendChatMessage", Sent) end
+	if type(_G.SendChatMessage) == "function" and _G.SendChatMessage ~= modern then
+		hooksecurefunc("SendChatMessage", Sent)
+	end
+	for _, event in ipairs({ "CHAT_MSG_GUILD", "CHAT_MSG_OFFICER" }) do
+		ns.AddFilter(event, function(frame, _, _, _, ...)
+			local name = type(frame) == "table" and frame.GetName and frame:GetName()
+			ns.Trace(("filters of %s, line %s"):format(tostring(name), tostring(Clean(select(9, ...)))))
+			return false
+		end)
+	end
 	-- (glass first: the lines of before, put back by the comforts, come dressed)
 	if ns.InitGlass then ns.InitGlass() end
 	ns.InitComfort()
@@ -493,6 +618,9 @@ local function Start()
 	ns.InitSocial()
 	ns.InitQuiet()
 	ns.ready = true
+	-- For the other addons (Wanderer's ChatInsert asks first): a link put in the messages' answer line while you
+	-- write in it, true when it went there. (Chat off: false, the game's chat box takes it.)
+	_G.WandererChat = { Insert = function(text) return ns.On() and ns.MessagesInsert(text) or false end }
 	-- (the tabs renamed, opened or closed: the Wanderer tab looked for again)
 	for _, name in ipairs({ "FCF_OpenNewWindow", "FCF_Close", "FCF_SetWindowName" }) do
 		if _G[name] then hooksecurefunc(name, TabsChanged) end

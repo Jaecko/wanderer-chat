@@ -493,8 +493,6 @@ end
 
 -- The game's menu of a name in the chat -------------------------------------------------------------------------------
 
-local function Used() ns.DB().repliesUsed = true end
-
 local function MenuEntries(_, root, context)
 	if not (ns.On("replies") and type(context) == "table" and root and root.CreateButton) then return end
 	-- (from a chat line only: the friends list opens this menu too)
@@ -505,10 +503,10 @@ local function MenuEntries(_, root, context)
 	local who = { full = full, name = ns.Who(full) or name, chatType = chatType, lineID = tonumber(lineID) }
 	if who.name == ns.Me() then return end
 	if root.CreateDivider then root:CreateDivider() end
-	root:CreateButton(L.REPLY_GREET:format(who.name), function() Used() ns.GreetPerson(who) end)
-	root:CreateButton(L.REPLY_TO:format(who.name), function() Used() ns.ReplyPerson(who) end)
+	root:CreateButton(L.REPLY_GREET:format(who.name), function() ns.GreetPerson(who) end)
+	root:CreateButton(L.REPLY_TO:format(who.name), function() ns.ReplyPerson(who) end)
 	if ns.LineByID(who.lineID) then
-		root:CreateButton(L.REPLY_QUOTE, function() Used() ns.QuotePerson(who) end)
+		root:CreateButton(L.REPLY_QUOTE, function() ns.QuotePerson(who) end)
 		root:CreateButton(L.REPLY_COPY, function() ns.CopyLine(who) end)
 	end
 end

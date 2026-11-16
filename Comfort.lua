@@ -172,12 +172,7 @@ local function KeyByName(log)
 end
 
 -- The lines of before, back in their tab, under a quiet line.
-local function Restore()
-	if not LogOn() then return end
-	local log = Log()
-	KeyByName(log)
-	restoring = true
-	ns.restoring = true
+local function PutBack(log)
 	for index = 1, (NUM_CHAT_WINDOWS or 10) do
 		local frame, lines = _G["ChatFrame" .. index], log[TabKey(index)]
 		if frame and type(lines) == "table" and lines[1] and frame.AddMessage and not IsCombatLogFrame(frame) then
@@ -190,11 +185,21 @@ local function Restore()
 			end
 			if lines[1] then U.Safe(frame.AddMessage, frame, Skin.Colorize(L.CHAT_LOG_BEFORE, "muted")) end
 			for _, line in ipairs(lines) do
-				local r, g, b = line[2] or 1, line[3] or 1, line[4] or 1
+				local r, g, b = tonumber(line[2]) or 1, tonumber(line[3]) or 1, tonumber(line[4]) or 1
 				U.Safe(frame.AddMessage, frame, line[1], r * LOG_DIM, g * LOG_DIM, b * LOG_DIM)
 			end
 		end
 	end
+end
+
+local function Restore()
+	if not LogOn() then return end
+	local log = Log()
+	KeyByName(log)
+	restoring = true
+	ns.restoring = true
+	-- (a surprise in an old line never leaves the chat believing it is still putting lines back)
+	pcall(PutBack, log)
 	restoring = false
 	ns.restoring = false
 end
@@ -433,6 +438,17 @@ local function Browse(box, key)
 	box.wandererSetting = nil
 	if box.SetCursorPosition then box:SetCursorPosition(#text) end
 end
+
+-- Another line to write in (the messages' answer line): the same arrows through what you sent, and what is sent
+-- there remembered too.
+function ns.ArrowHistory(box)
+	box:HookScript("OnArrowPressed", Browse)
+	box:HookScript("OnEditFocusLost", function(self) browsing[self] = nil end)
+	box:HookScript("OnTextChanged", function(self, userInput)
+		if userInput and not self.wandererSetting then browsing[self] = nil end
+	end)
+end
+ns.RememberSent = Remember
 
 local function Watch()
 	for i = 1, (NUM_CHAT_WINDOWS or 10) do

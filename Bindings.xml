@@ -5,7 +5,7 @@
 	<Binding name="WANDERERCHAT_MESSAGES">
 		WandererChat_ToggleMessages()
 	</Binding>
-	<Binding name="WANDERER_MESSAGES">
+	<Binding name="WANDERER_MESSAGES" hidden="true">
 		WandererChat_ToggleMessages()
 	</Binding>
 </Bindings>

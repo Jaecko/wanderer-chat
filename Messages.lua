@@ -19,6 +19,8 @@ local W = Wanderer
 local U = W and W.Util
 local Skin = W and W.Skin
 local Safe, Clean = U and U.Safe, U and U.Clean
+-- (folded on both sides: accents and capitals aside, "foret" finds "Forêt")
+local Fold = U and (U.Fold or U.Upper)
 
 local WIDTH, HEIGHT = 620, 360
 local MIN_WIDTH, MIN_HEIGHT, MAX_WIDTH, MAX_HEIGHT = 520, 280, 1100, 900 -- resized by its corner
@@ -78,15 +80,29 @@ local function AllConversations()
 	return all
 end
 
--- The oldest people go when there are too many.
+-- The oldest people go when there are too many: one line in the chat says so (pin someone to keep them).
 local function Trim()
 	local all = AllConversations()
+	local gone = 0
 	for index = MAX_PEOPLE + 1, #all do
 		local key = all[index].key
 		if not all[index].talk.pinned then -- a pinned conversation is never forgotten
 			if IsBattleNet(key) then session[key] = nil else Store()[key] = nil end
+			gone = gone + 1
 		end
 	end
+	if gone > 0 and W.Print then W.Print(L.MESSAGES_TRIMMED:format(gone, MAX_PEOPLE)) end
+end
+
+-- The most recent conversation with something unread, nil when all is read.
+local function NewestUnread()
+	local open
+	for _, conversation in ipairs(AllConversations()) do
+		if (conversation.talk.unread or 0) > 0 and (not open or (conversation.talk.last or 0) > (open.talk.last or 0)) then
+			open = conversation
+		end
+	end
+	return open
 end
 
 -- Whether you wrote to someone (their full name): no stranger then.
@@ -357,12 +373,15 @@ local function PersonActions(actions, key, talk)
 		Safe(C_PartyInfo and C_PartyInfo.InviteUnit or InviteUnit, key)
 	end }
 	if Safe(Friends("GetFriendInfo"), short) then
-		actions[#actions + 1] = { text = L.MESSAGES_REMOVE_FRIEND, glyph = "close", onClick = function() Safe(Friends("RemoveFriend"), short) end }
+		-- (asked first, as a conversation deleted: a friend removed is not given back)
+		actions[#actions + 1] = { text = L.MESSAGES_REMOVE_FRIEND, glyph = "close", onClick = function()
+			Skin.Ask(L.MESSAGES_REMOVE_FRIEND_ASK:format(talk.name or key), function() Safe(Friends("RemoveFriend"), short) end)
+		end }
 	else
-		actions[#actions + 1] = { text = L.MESSAGES_ADD_FRIEND, glyph = "star", onClick = function() Safe(Friends("AddFriend"), key) end }
+		actions[#actions + 1] = { text = L.MESSAGES_ADD_FRIEND, glyph = "check", onClick = function() Safe(Friends("AddFriend"), key) end }
 	end
 	if Clean(Safe(Friends("IsIgnored"), key)) then
-		actions[#actions + 1] = { text = L.MESSAGES_UNIGNORE, glyph = "back", onClick = function() Safe(Friends("DelIgnore"), key) end }
+		actions[#actions + 1] = { text = L.MESSAGES_UNIGNORE, glyph = "undo", onClick = function() Safe(Friends("DelIgnore"), key) end }
 	else
 		actions[#actions + 1] = { text = L.MESSAGES_IGNORE, glyph = "eyeoff", onClick = function() Safe(Friends("AddIgnore"), key) end }
 	end
@@ -438,6 +457,8 @@ end
 local bubbles, stamps = {}, {} -- pools
 local used = { bubbles = 0, stamps = 0, height = 0 }
 local lastShown -- the entry shown last (its time and its author)
+local firstNew, newAt -- the first message not read yet when the conversation was opened; where its line stands
+local matched, matchAt -- the message the search found in the conversation opened; where its bubble stands
 local bubbleOf = setmetatable({}, { __mode = "k" }) -- entry -> its bubble
 
 local function ThreadWidth()
@@ -456,7 +477,9 @@ local function Bubble()
 	bubble.text:SetPoint("TOPLEFT", bubble, "TOPLEFT", BUBBLE_PAD_X, -BUBBLE_PAD_Y)
 	-- Item and quest links stay clickable; the hour shows under the mouse.
 	if bubble.SetHyperlinksEnabled then pcall(bubble.SetHyperlinksEnabled, bubble, true) end
-	bubble:SetScript("OnHyperlinkClick", function(_, link, text, button) SetItemRef(link, text, button) end)
+	bubble:SetScript("OnHyperlinkClick", function(_, link, text, button)
+		ns.ClickLink(link, text, button)
+	end)
 	bubble:EnableMouse(true)
 	bubble.padTip = true -- (a controller reaches it too: its hour, and the stick scrolls the thread from there)
 	bubble:SetScript("OnEnter", function(self)
@@ -470,14 +493,31 @@ local function Bubble()
 	return bubble
 end
 
-local function Stamp()
+-- (role: its color, the quiet "muted" by default; each use sets it, a line of the pool may have had another)
+local function Stamp(role)
 	used.stamps = used.stamps + 1
 	local stamp = stamps[used.stamps]
 	if not stamp then
 		stamp = Skin.Text(thread.content, "GameTooltipTextSmall", "muted")
 		stamp:SetJustifyH("CENTER")
+		if stamp.SetWordWrap then stamp:SetWordWrap(true) end
 		stamps[used.stamps] = stamp
 	end
+	stamp:SetTextColor(Skin.RGB(role or "muted"))
+	return stamp
+end
+
+-- A quiet line across the thread (the hour, what the game answered for them, where the new messages start).
+local function Line(words, role, gap)
+	local stamp = Stamp(role)
+	stamp:SetText(words)
+	stamp:ClearAllPoints()
+	stamp:SetWidth(ThreadWidth() - 16)
+	used.height = used.height + gap
+	stamp:SetPoint("TOP", thread.content, "TOP", 0, -used.height)
+	stamp:Show()
+	local height = U.Measure(stamp, "GetStringHeight", 12)
+	used.height = used.height + math.max(12, math.ceil(height))
 	return stamp
 end
 
@@ -502,14 +542,22 @@ local function AddBubble(entry, secretText)
 	local t = entry.t or time()
 	-- The hour, between moments apart (and before the first one).
 	if not lastShown or t - (lastShown.t or 0) > APART then
-		local stamp = Stamp()
-		stamp:SetText(Today(t) and Hour(t) or Day(t) .. " " .. Hour(t))
-		stamp:ClearAllPoints()
-		used.height = used.height + (lastShown and OTHER_GAP or 2)
-		stamp:SetPoint("TOP", thread.content, "TOP", 0, -used.height)
-		stamp:SetWidth(width)
-		stamp:Show()
-		used.height = used.height + 12
+		Line(Today(t) and Hour(t) or Day(t) .. " " .. Hour(t), "muted", lastShown and OTHER_GAP or 2)
+		lastShown = nil
+	end
+	-- What the game answered for them (away, busy, not online): a quiet line, no bubble.
+	if entry.note then
+		Line(entry.text or "", entry.note == "offline" and "warn" or "soft", OTHER_GAP)
+		lastShown = { t = t, note = true }
+		if window.emptyThread then window.emptyThread:Hide() end
+		thread.content:SetHeight(math.max(1, used.height + 4))
+		ScrollToEnd()
+		return
+	end
+	-- Where the messages not read yet start (opening a conversation with some): a gold line before the first.
+	if entry == firstNew then
+		Line(L.MESSAGES_NEW, "gold", lastShown and OTHER_GAP or 2)
+		newAt = used.height
 		lastShown = nil
 	end
 	local together = lastShown and (lastShown.me and true or false) == (entry.me and true or false)
@@ -528,6 +576,14 @@ local function AddBubble(entry, secretText)
 	local most = math.floor(width * BUBBLE_SHARE) - BUBBLE_PAD_X * 2
 	text:SetWidth(most)
 	local words = secretText or entry.text or (entry.fight and L.MESSAGES_IN_FIGHT) or ""
+	-- (a web address said to you: a link, ready to copy, as in the chat)
+	if not secretText and entry.text and ns.Linkify and ns.On("links") then words = ns.Linkify(words) end
+	-- (the message the search found: its edge in gold, the thread taken to it)
+	if entry == matched and bubble.SetBackdropBorderColor then
+		local gold = Skin.COLORS.gold
+		bubble:SetBackdropBorderColor(gold[1], gold[2], gold[3], 1)
+		matchAt = used.height
+	end
 	if not pcall(text.SetText, text, words) then text:SetText("") end
 	local natural = U.Measure(text, "GetStringWidth", most)
 	local textWidth = math.min(most, math.ceil(natural) + 1)
@@ -540,9 +596,9 @@ local function AddBubble(entry, secretText)
 	else
 		bubble:SetPoint("TOPLEFT", thread.content, "TOPLEFT", 2, -used.height)
 	end
-	-- Yours waits, a little faded, for the game to confirm it.
+	-- Yours waits, a little faded, for the game to confirm it (and stays so when it never left: not online).
 	local waiting = entry.echo and GetTime() - entry.echo >= 0 and GetTime() - entry.echo <= ECHO_WAIT
-	bubble:SetAlpha(waiting and SENDING_ALPHA or 1)
+	bubble:SetAlpha((waiting or entry.failed) and SENDING_ALPHA or 1)
 	bubble.entry = entry
 	bubbleOf[entry] = bubble
 	bubble:Show()
@@ -558,10 +614,39 @@ local function ShowConversation(key)
 	-- (its draft back in the line, as left: the line untouched when it holds it already)
 	local draft = talk.draft or ""
 	if (input:GetText() or "") ~= draft then input:SetText(draft) end
+	-- (what was not read yet: the first of their messages that many from the end, a line "New" before it)
+	firstNew, newAt, matched, matchAt = nil, nil, nil, nil
+	local unread = talk.unread or 0
+	for index = #talk.lines, 1, -1 do
+		if unread <= 0 then break end
+		local entry = talk.lines[index]
+		if not entry.me and not entry.note and not entry.fight then
+			unread = unread - 1
+			if unread == 0 then firstNew = entry end
+		end
+	end
+	-- (a search going: the newest of its messages found here)
+	local query = window.search and Fold(strtrim(window.search:GetText() or "")) or ""
+	if query ~= "" then
+		for index = #talk.lines, 1, -1 do
+			local entry = talk.lines[index]
+			if not entry.note and type(entry.text) == "string" and Fold(entry.text):find(query, 1, true) then
+				matched = entry
+				break
+			end
+		end
+	end
 	talk.unread = 0
 	ClearThread()
 	for _, entry in ipairs(talk.lines) do AddBubble(entry) end
-	window.emptyThread:SetShown(used.bubbles == 0)
+	window.emptyThread:SetShown(used.bubbles == 0 and used.stamps == 0)
+	-- Taken to what matters: the message found, else the first new one when the newest are further down than the
+	-- thread shows (else the end, as always).
+	local at = matchAt or newAt
+	if at then
+		local range = math.max(0, used.height - (thread:GetHeight() or 0))
+		thread:SetVerticalScroll(math.min(range, math.max(0, at - 24)))
+	end
 	header:SetText(NameOf(talk, key))
 	Learn(talk, key)
 	info:SetText(InfoLine(talk, key))
@@ -588,7 +673,7 @@ local function OpenMenu(owner, key)
 		ns.RefreshMessages()
 	end }
 	if (talk.unread or 0) > 0 then
-		actions[#actions + 1] = { text = L.MESSAGES_MARK_READ, glyph = "bell", onClick = function()
+		actions[#actions + 1] = { text = L.MESSAGES_MARK_READ, glyph = "dot", onClick = function()
 			talk.unread = 0
 			ns.RefreshMessages()
 		end }
@@ -774,8 +859,6 @@ end
 
 -- The search over the people: their name or a word of the conversation.
 local SEARCH_HEIGHT = 28 -- the search, then 8 pixels
--- (folded on both sides: accents and capitals aside, "foret" finds "Forêt")
-local Fold = U.Fold or U.Upper
 local function Matches(entry, query)
 	if query == "" then return true end
 	local name = (entry.talk.name or entry.key)
@@ -786,6 +869,8 @@ local function Matches(entry, query)
 	return false
 end
 
+local listOffset = 0 -- people out of sight above, the list scrolled by the wheel
+
 function ns.RefreshMessages()
 	if not (window and window:IsShown()) then return end
 	local query = Fold(strtrim(window.search and window.search:GetText() or ""))
@@ -793,14 +878,17 @@ function ns.RefreshMessages()
 	for _, entry in ipairs(AllConversations()) do
 		if Matches(entry, query) then all[#all + 1] = entry end
 	end
+	-- More people than the list's height: the wheel goes down the list (the first ones out of sight above).
+	local fit = math.max(1, math.floor(((list:GetHeight() or 0) - SEARCH_HEIGHT) / ROW_HEIGHT))
+	listOffset = math.max(0, math.min(listOffset, #all - fit))
 	unitOf = AroundUnits() -- (the units around read once for every row's portrait)
 	for index, entry in ipairs(all) do
 		local row = RowFor(index)
 		FillRow(row, entry)
 		row:ClearAllPoints()
-		row:SetPoint("TOPLEFT", list, "TOPLEFT", 0, -SEARCH_HEIGHT - (index - 1) * ROW_HEIGHT)
+		row:SetPoint("TOPLEFT", list, "TOPLEFT", 0, -SEARCH_HEIGHT - (index - 1 - listOffset) * ROW_HEIGHT)
 		row:SetPoint("RIGHT", list, "RIGHT", 0, 0)
-		row:Show()
+		row:SetShown(index > listOffset)
 	end
 	unitOf = nil
 	for index = #all + 1, #rows do
@@ -833,11 +921,40 @@ local function Echo(key, text)
 	ns.RefreshMessages()
 end
 
+-- A line that is a command of the game ("/dance", "/g hello", "/invite"): never whispered as words. Known by the
+-- game's own lists of chats and emotes and by every command the game or an addon declares; "/o/" or ":/" are words.
+local function IsCommand(text)
+	local word = text:match("^(/[^%s/]+)%s") or text:match("^(/[^%s/]+)$")
+	if not (word and word:find("^/[%w_\128-\255]+$")) then return false end
+	local upper = U.Upper and U.Upper(word) or word:upper()
+	for _, known in ipairs({ _G.hash_ChatTypeInfoList, _G.hash_EmoteTokenList, _G.hash_SecureCmdList }) do
+		if type(known) == "table" and known[upper] ~= nil then return true end
+	end
+	-- (the declared commands: SLASH_<NAME><n> = "/word")
+	for key, value in pairs(_G) do
+		if type(value) == "string" and type(key) == "string" and key:sub(1, 6) == "SLASH_"
+			and (U.Upper and U.Upper(value) or value:upper()) == upper then
+			return true
+		end
+	end
+	return false
+end
+ns.MessagesIsCommand = IsCommand -- (tests)
+
 local function Send()
 	local text = strtrim(input:GetText() or "")
 	if text == "" or not current then return end
+	-- A command goes to the game's own chat line, written there as typed, sent by your Enter there.
+	if IsCommand(text) then
+		input:SetText("")
+		Conversation(current).draft = nil
+		input:ClearFocus()
+		ns.OpenChatLine(text)
+		return
+	end
 	input:SetText("")
 	Conversation(current).draft = nil
+	if ns.RememberSent then ns.RememberSent(text) end
 	Echo(current, text)
 	if IsBattleNet(current) then
 		if BNSendWhisper then pcall(BNSendWhisper, tonumber(current:sub(4)), text) end
@@ -845,6 +962,18 @@ local function Send()
 		local send = C_ChatInfo and C_ChatInfo.SendChatMessage or SendChatMessage
 		if send then pcall(send, text, "WHISPER", nil, current) end
 	end
+end
+
+-- A link (Shift and a click on an item, a quest, a spell) in the answer line while you write in it, as the game's
+-- chat line takes it; true when it went there. (Asked by the game's link insert and by Chat.lua's links: once.)
+local insertedText, insertedAt
+function ns.MessagesInsert(text)
+	if type(text) ~= "string" or text == "" or U.IsSecret(text) then return false end
+	if not (input and input:IsShown() and input.HasFocus and input:HasFocus()) then return false end
+	if insertedText == text and insertedAt == GetTime() then return true end
+	insertedText, insertedAt = text, GetTime()
+	input:Insert(text)
+	return true
 end
 
 -- (a draft begun or emptied: its row says so, once for the letters typed together)
@@ -858,12 +987,8 @@ local function CreateWindow()
 	window:SetSize(Skin.Within(tonumber(size[1]) or WIDTH, MIN_WIDTH, MAX_WIDTH),
 		Skin.Within(tonumber(size[2]) or HEIGHT, MIN_HEIGHT, MAX_HEIGHT))
 	Skin.Dress(window, { "LEFT", UIParent, "LEFT", 40, 60 }, "messagesPos")
-	-- A window of its own: the game's windows (the spellbook...) and Escape never
-	-- close it, the interface fades around it, and it stays in a fight (to
-	-- answer, if you wish). Its cross closes it, or Escape while writing.
-	for index = #(UISpecialFrames or {}), 1, -1 do
-		if UISpecialFrames[index] == "WandererChatMessages" then table.remove(UISpecialFrames, index) end
-	end
+	-- Escape closes it like every window (Skin.Dress keeps it in UISpecialFrames); while writing, the first Escape
+	-- only leaves the answer line, as in the game's chat.
 	local margin = Skin.Margin() + 6
 
 	-- The people, on the left.
@@ -879,15 +1004,24 @@ local function CreateWindow()
 	-- Search: a name or a word.
 	window.search = Skin.CreateInput(list, "WandererChatMessagesSearch", 40, {
 		hint = L.MESSAGES_SEARCH,
-		onChange = function() ns.RefreshMessages() end,
+		onChange = function()
+			listOffset = 0 -- (a new search starts at the top of what it finds)
+			ns.RefreshMessages()
+		end,
 		onEscape = function(self) self:SetText("") self:ClearFocus() end,
 	})
 	window.search:SetHeight(20)
+
 	window.search:SetPoint("TOPLEFT", list, "TOPLEFT", 0, 0)
 	window.search:SetPoint("RIGHT", list, "RIGHT", 0, 0)
 	window.empty:SetPoint("TOPLEFT", list, "TOPLEFT", 4, -SEARCH_HEIGHT - 4)
 	window.empty:SetPoint("RIGHT", list, "RIGHT", -4, 0)
 	window.empty:SetText(L.MESSAGES_EMPTY)
+	list:EnableMouseWheel(true)
+	list:SetScript("OnMouseWheel", function(_, delta)
+		listOffset = math.max(0, listOffset - delta)
+		ns.RefreshMessages()
+	end)
 
 	-- The conversation, on the right.
 	portrait = Portrait(window, PORTRAIT)
@@ -927,6 +1061,15 @@ local function CreateWindow()
 	input:SetPoint("BOTTOMLEFT", list, "BOTTOMRIGHT", 16, 0)
 	input:SetPoint("BOTTOMRIGHT", window, "BOTTOMRIGHT", -margin, margin)
 	input:SetScript("OnEnterPressed", Send)
+	-- (as the game's whisper line: Tab to the next person you talked with)
+	input:SetScript("OnTabPressed", function()
+		local all = AllConversations()
+		table.sort(all, function(a, b) return (a.talk.last or 0) > (b.talk.last or 0) end)
+		if not all[2] then return end
+		local at = 0
+		for index, entry in ipairs(all) do if entry.key == current then at = index end end
+		ShowConversation(all[at % #all + 1].key)
+	end)
 	-- What you write stays in its conversation until sent: leave it, come back, it is there.
 	input:SetScript("OnTextChanged", function(self)
 		if not current then return end
@@ -938,10 +1081,9 @@ local function CreateWindow()
 			RowsSoon()
 		end
 	end)
-	input:SetScript("OnEscapePressed", function(self)
-		self:ClearFocus()
-		window:Hide()
-	end)
+	input:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
+	-- (Up and Down through what you sent, as in the game's line; hooked once its own scripts are set)
+	if ns.ArrowHistory then ns.ArrowHistory(input) end
 	thread = CreateFrame("ScrollFrame", "WandererChatMessagesHistory", window)
 	-- Room for the name and both lines of who they are, always: nothing
 	-- moves when a line comes (an answer to "look them up").
@@ -964,6 +1106,12 @@ local function CreateWindow()
 	thread.content = CreateFrame("Frame", nil, thread)
 	thread.content:SetSize(thread.width, 1)
 	thread:SetScrollChild(thread.content)
+	-- A click in the conversation, beside the bubbles: the answer line taken, ready to write (a keyboard's).
+	thread:EnableMouse(true)
+	thread.padIgnored = true -- (a controller has no keyboard to write with: never a stop on its way)
+	thread:SetScript("OnMouseUp", function(_, button)
+		if button == "LeftButton" and current and input:IsShown() and not (U.UsingPad and U.UsingPad()) then input:SetFocus() end
+	end)
 	thread:EnableMouseWheel(true)
 	thread:SetScript("OnMouseWheel", function(self, delta)
 		local range = math.max(0, used.height - (self:GetHeight() or 0))
@@ -1027,6 +1175,11 @@ function ns.ToggleMessages(key, answer)
 		-- (a reply is written with a keyboard: the controller keeps its own navigation)
 		if answer and input:IsShown() and not (U.UsingPad and U.UsingPad()) then input:SetFocus() end
 	else
+		-- (opened with messages waiting: on the newest of those conversations, not the one read last time)
+		if not window:IsShown() then
+			local open = NewestUnread()
+			if open then current = open.key end
+		end
 		window:SetShown(not window:IsShown())
 	end
 end
@@ -1046,8 +1199,100 @@ local function HiddenInChat()
 	return ns.On("messagesHideInChat") and not ns.Yields("whispers")
 end
 
+-- A message the game veils as "may be inappropriate" comes as a notice with a link to show it: with the chat's
+-- option to unveil such lines (Comfort.lua), it comes with its own words here too (the game's own unveiling).
+local function Unveiled(text, lineID)
+	if type(text) ~= "string" or U.IsSecret(text) or not text:find("|Hcensoredmessage:", 1, true) then return text end
+	local chatInfo = C_ChatInfo
+	if not (ns.On("uncensor") and chatInfo and chatInfo.UncensorChatLine and chatInfo.GetChatLineText) then return text end
+	lineID = Clean(lineID) or tonumber(text:match("|Hcensoredmessage:(%d+)"))
+	if type(lineID) ~= "number" then return text end
+	pcall(chatInfo.UncensorChatLine, lineID)
+	local ok, words = pcall(chatInfo.GetChatLineText, lineID)
+	if ok and type(words) == "string" and not U.IsSecret(words) and words ~= "" and not words:find("|Hcensoredmessage:", 1, true) then
+		return words
+	end
+	return text
+end
+ns.MessagesUnveiled = Unveiled -- (tests)
+
+-- What the game answers for someone you write to: away or busy (their own words), or not online. A quiet line in
+-- their conversation (one you have already: never a new one for this), the chat no longer showing it then.
+local NOTES = { CHAT_MSG_AFK = "afk", CHAT_MSG_DND = "dnd" }
+local NOTE_AGAIN = 600 -- seconds: the same answer again (each message you send gets one) is not written twice
+local notFound -- the game's "no player named %s is playing", as a pattern
+
+-- The conversation with this name, only when there is one already.
+local function Existing(name)
+	name = Clean(name)
+	if type(name) ~= "string" or name == "" then return nil end
+	local store = Store()
+	if store[name] then return name end
+	local short = Ambiguate and Clean(Safe(Ambiguate, name, "short")) or name
+	for key, talk in pairs(store) do
+		if talk.name == short or (key:match("^(.-)%-") or key) == name then return key end
+	end
+	return nil
+end
+
+local function NoteFor(event, text, name)
+	if U.IsSecret(text) or U.IsSecret(name) then return nil end
+	local note, key, words = NOTES[event], nil, nil
+	if note then
+		key = Existing(name)
+		if not key then return nil end
+		local talk = Store()[key]
+		local format = _G[note == "afk" and "CHAT_AFK_GET" or "CHAT_DND_GET"]
+		local who = talk.name or key
+		local said = type(text) == "string" and strtrim(text) or ""
+		words = type(format) == "string" and (format:format(who) .. said) or (who .. ": " .. said)
+	elseif event == "CHAT_MSG_SYSTEM" and type(text) == "string" then
+		-- (read once the game has its words)
+		notFound = notFound or (U.FormatPattern and U.FormatPattern(_G.ERR_CHAT_PLAYER_NOT_FOUND_S))
+		if not notFound then return nil end
+		local missing = text:match(notFound)
+		key = missing and Existing(missing)
+		if not key then return nil end
+		note, words = "offline", text
+	end
+	if not key then return nil end
+	return key, note, words
+end
+
+local function OnNote(event, text, name)
+	local key, note, words = NoteFor(event, text, name)
+	if not key then return end
+	local talk = Store()[key]
+	-- (the same answer again, soon: not written twice)
+	for index = #talk.lines, math.max(1, #talk.lines - 6), -1 do
+		local line = talk.lines[index]
+		if line.note == note and line.text == words and time() - (line.t or 0) < NOTE_AGAIN then return end
+	end
+	-- Not online: your messages waiting for the game never left.
+	if note == "offline" then
+		for index = #talk.lines, math.max(1, #talk.lines - 10), -1 do
+			local line = talk.lines[index]
+			if line.echo then line.echo, line.failed = nil, true end
+		end
+	end
+	local entry = { t = time(), note = note, text = words }
+	talk.lines[#talk.lines + 1] = entry
+	while #talk.lines > MAX_LINES do table.remove(talk.lines, 1) end
+	if current == key and window and window:IsShown() then
+		if note == "offline" then ShowConversation(key) else AddBubble(entry) end
+	end
+	ns.RefreshMessages()
+end
+
+-- The chat leaves those lines to the conversation (only while it keeps the whispers out, only for one there).
+local function NoteFilter(_, event, text, name)
+	if not (Enabled() and HiddenInChat()) then return false end
+	return NoteFor(event, text, name) ~= nil
+end
+
 -- A message, written or received: kept, shown, and the window opened when quiet.
-local function OnMessage(event, text, name, guid, bnID)
+local function OnMessage(event, text, name, guid, bnID, lineID)
+	text = Unveiled(text, lineID)
 	local key
 	if event:find("BN_") then
 		bnID = Clean(bnID)
@@ -1134,11 +1379,38 @@ end
 
 -- The chat no longer shows them (they are in the window); only those the
 -- window can show: a message is never lost between the two.
+-- The chat no longer sees them either, so the game's answer key (R, /r) is told here who wrote last and to whom
+-- you wrote last, as the chat would have done: once per line (each chat window asks for the same line).
+local toldLine
+local function Remember(event, name, lineID, ...)
+	if lineID and lineID == toldLine then return end
+	toldLine = lineID
+	-- (gold selling kept out, Quiet.lua: never the one R answers)
+	if event == "CHAT_MSG_WHISPER" and ns.HushedWhisper and ns.HushedWhisper(...) then return end
+	local util = _G.ChatFrameUtil
+	local setter
+	if event:find("_INFORM") then
+		setter = (util and util.SetLastToldTarget) or _G.ChatEdit_SetLastToldTarget
+	else
+		setter = (util and util.SetLastTellTarget) or _G.ChatEdit_SetLastTellTarget
+	end
+	if setter then Safe(setter, name, event:find("BN_") and "BN_WHISPER" or "WHISPER") end
+end
+
 local function Filter(_, event, text, name, ...)
 	if not (Enabled() and HiddenInChat()) then return false end
 	if U.IsSecret(text) then return false end -- (in a fight: the window cannot keep it, the chat does)
-	if event:find("BN_") then return Clean(select(11, ...)) ~= nil end -- the 13th value: the Battle.net id
-	return Clean(name) ~= nil
+	local hide
+	if event:find("BN_") then
+		hide = Clean(select(11, ...)) ~= nil -- the 13th value: the Battle.net id
+	else
+		hide = Clean(name) ~= nil
+	end
+	-- (the 11th value: the line's id; the 6th, 12th: flags and who)
+	if hide and Clean(name) then
+		Remember(event, Clean(name), Clean(select(9, ...)), text, name, select(9, ...), select(10, ...), select(4, ...))
+	end
+	return hide
 end
 
 -- The button beside the chat ------------------------------------------------------------
@@ -1427,6 +1699,7 @@ function ns.InitMessages()
 	local frame = CreateFrame("Frame")
 	for event in pairs(EVENTS) do frame:RegisterEvent(event) end
 	frame:RegisterEvent("PLAYER_REGEN_ENABLED")
+	for _, event in ipairs({ "CHAT_MSG_AFK", "CHAT_MSG_DND", "CHAT_MSG_SYSTEM" }) do frame:RegisterEvent(event) end
 	frame:RegisterEvent("PLAYER_TARGET_CHANGED")
 	frame:RegisterEvent("WHO_LIST_UPDATE")
 	frame:RegisterEvent("FRIENDLIST_UPDATE")
@@ -1453,23 +1726,28 @@ function ns.InitMessages()
 				if not window then CreateWindow() end
 				window.quiet = true
 				-- The most recent conversation with something unread.
-				local open
-				for _, conversation in ipairs(AllConversations()) do
-					if (conversation.talk.unread or 0) > 0 and (not open or (conversation.talk.last or 0) > (open.talk.last or 0)) then
-						open = conversation
-					end
-				end
-				ns.ToggleMessages(open.key)
+				ns.ToggleMessages(NewestUnread().key)
 				window.quiet = nil
 			end
 			return
 		end
 		local text, name = ...
+		if NOTES[event] or event == "CHAT_MSG_SYSTEM" then
+			if Enabled() then OnNote(event, text, name) end
+			return
+		end
 		if not Enabled() then return end
 		local guid, bnID = select(12, ...), select(13, ...)
 		-- (gold selling whispered by a stranger: no conversation, no sound, no window; Quiet.lua)
 		if event == "CHAT_MSG_WHISPER" and ns.HushedWhisper and ns.HushedWhisper(text, name, select(11, ...), guid, select(6, ...)) then return end
-		OnMessage(event, text, name, guid, bnID)
+		OnMessage(event, text, name, guid, bnID, select(11, ...))
 	end)
 	for event in pairs(EVENTS) do ns.AddFilter(event, Filter) end
+	for _, event in ipairs({ "CHAT_MSG_AFK", "CHAT_MSG_DND", "CHAT_MSG_SYSTEM" }) do ns.AddFilter(event, NoteFilter) end
+	-- Shift and a click on a link while the answer line is written in: the link goes there too (both places the
+	-- game may keep its insert; one link inserted once).
+	local function Inserted(text) ns.MessagesInsert(text) end
+	if type(_G.ChatEdit_InsertLink) == "function" then hooksecurefunc("ChatEdit_InsertLink", Inserted) end
+	local util = _G.ChatFrameUtil
+	if type(util) == "table" and type(util.InsertLink) == "function" then hooksecurefunc(util, "InsertLink", Inserted) end
 end

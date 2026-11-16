@@ -109,7 +109,6 @@ function ns.Options(o)
 	-- The tabs: which ones in the button's card, made there.
 	o.Header(L.SECTION_TABS)
 	Under(o.Button(L.CHAT_TABS, L.CHAT_TABS_BUTTON, L.CHAT_TABS_DESC, function(button) ns.TabsCard(button) end))
-	Under(Check("unread", "UNREAD", ns.RefreshTabs))
 
 	-- The public channels: quieter, a group sought, your words.
 	o.Header(L.SECTION_CHANNELS)
@@ -153,8 +152,7 @@ function ns.Options(o)
 		local id = type(game) == "table" and game.SOCIAL_CATEGORY_ID
 		if not (id and game.OpenToCategory) then return end
 		-- (not with a controller: the game's settings opened from an addon block the game's own actions)
-		local util = _G.Wanderer and _G.Wanderer.Util
-		if util and util.UsingPad and util.UsingPad() then return end
+		if U and U.UsingPad and U.UsingPad() then return end
 		o.CloseSettings()
 		pcall(game.OpenToCategory, id)
 	end))

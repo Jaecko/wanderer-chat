@@ -6,9 +6,8 @@ local L = ns.L
 -- (rename, move, close as in the game). A tab that already exists under the same name is never made twice;
 -- General keeps all it shows, but the public channels when they get their own tab.
 --
--- On each tab, what came while it was not shown: a small count in gold at its corner (only your guild, your
--- group and your whispers: the public channels, the system and the loot pass uncounted), and a gold dot when
--- a line there names you; seen even when the game has faded the tabs; the tab shown, they go.
+-- On a tab not shown, a gold dot when a line there names you; seen even when the game has faded the tabs; the
+-- tab shown, it goes.
 
 local W = Wanderer
 local U = W and W.Util
@@ -126,87 +125,52 @@ function ns.ShowTabOf(chatType, channel)
 	if frame and frame.ScrollToBottom then pcall(frame.ScrollToBottom, frame) end
 end
 
--- What came on each tab ----------------------------------------------------------------------------------------
+-- A line naming you on another tab ------------------------------------------------------------------------------
 
-local MOST = 99 -- shown as "99+" beyond
 local SETTLE = 5 -- seconds after the start: the lines the game gives at login (the guild's message) are not news
-local DOT = 9 -- the gold dot's size
-local counts, named, badges, dots, watched = {}, {}, {}, {}, {}
+local DOT = 12 -- the gold dot's size
+local named, dots, watched = {}, {}, {}
 local settled = false
 
--- The chats counted: the guild, the group, the whispers (yours sent: not news).
-local COUNTED = { "GUILD", "OFFICER", "PARTY", "PARTY_LEADER", "RAID", "RAID_LEADER", "RAID_WARNING", "INSTANCE_CHAT",
-	"INSTANCE_CHAT_LEADER", "WHISPER", "BN_WHISPER" }
-
--- Whether a line shown is one of those: by the id of its chat the game gives with it, else by its color.
-local function Counts(r, g, b, id)
-	-- (a game without the chats' colors: every line, as before)
-	if type(ChatTypeInfo) ~= "table" then return true end
-	return ns.IsChatType(COUNTED, r, g, b, id)
-end
-
-local function Badge(frame)
-	if badges[frame] then return badges[frame], dots[frame] end
+local function Dot(frame)
+	if dots[frame] then return dots[frame] end
 	local tab = frame.GetName and _G[(frame:GetName() or "") .. "Tab"]
 	if not tab then return end
-	local badge = Skin.Text(tab, "GameFontNormalSmall", "gold")
-	badge:SetPoint("BOTTOMRIGHT", tab, "TOPRIGHT", -6, -8)
 	local dot = Skin.GlyphOn(tab:CreateTexture(nil, "OVERLAY"), "dot")
 	dot:SetSize(DOT, DOT)
-	-- (seen when the game has faded the tabs: that is when they are wanted)
-	for _, part in ipairs({ badge, dot }) do
-		if part.SetIgnoreParentAlpha then part:SetIgnoreParentAlpha(true) end
-		part:Hide()
-	end
-	badges[frame], dots[frame] = badge, dot
-	return badge, dot
+	-- (seen when the game has faded the tabs: that is when it is wanted)
+	if dot.SetIgnoreParentAlpha then dot:SetIgnoreParentAlpha(true) end
+	dot:Hide()
+	dots[frame] = dot
+	return dot
 end
 
 local function Draw(frame)
-	local badge, dot = Badge(frame)
-	if not badge then return end
-	local count = counts[frame] or 0
+	local dot = Dot(frame)
+	if not dot then return end
 	local tab = _G[(frame:GetName() or "") .. "Tab"]
 	local tabShown = tab and tab:IsShown() or false
-	local countShown = count > 0 and ns.On("unread") and tabShown
-	badge:SetText(count > MOST and MOST .. "+" or tostring(count))
-	badge:SetShown(countShown)
-	local dotShown = named[frame] and ns.On("mention") and tabShown or false
-	dot:SetShown(dotShown)
-	badge:ClearAllPoints()
+	dot:SetShown(named[frame] and ns.On("mention") and tabShown or false)
 	dot:ClearAllPoints()
-	-- In glass, the tabs are plain words, shown with the mouse: the dot and the count just after them, with them.
+	if dot.SetIgnoreParentAlpha then dot:SetIgnoreParentAlpha(true) end
+	-- In glass, the tabs are plain words, shown with the mouse: the dot just after them, still seen at rest.
 	local words = ns.GlassHolds and ns.GlassHolds(frame) and type(tab.Text) == "table" and tab.Text or nil
-	for _, part in ipairs({ badge, dot }) do
-		if part.SetIgnoreParentAlpha then part:SetIgnoreParentAlpha(words == nil) end
-	end
 	if words then
 		dot:SetPoint("LEFT", words, "RIGHT", 3, 0)
-		badge:SetPoint("LEFT", dotShown and dot or words, "RIGHT", dotShown and 2 or 3, 0)
-		return
-	end
-	-- Your name: the dot, before the count when there is one.
-	badge:SetPoint("BOTTOMRIGHT", tab, "TOPRIGHT", -6, -8)
-	if countShown then
-		dot:SetPoint("RIGHT", badge, "LEFT", -2, 0)
 	else
 		dot:SetPoint("BOTTOMRIGHT", tab, "TOPRIGHT", -6, -8)
 	end
 end
 
-local function Counted(frame, text, r, g, b, id)
-	if not settled or frame:IsVisible() or ns.restoring or not ns.On() then return end
+local function Seen(frame, text)
+	if not settled or frame:IsVisible() or ns.restoring or not ns.On() or not ns.On("mention") then return end
 	if ns.IsCombatLogFrame(frame) then return end
 	local index = tonumber((frame:GetName() or ""):match("^ChatFrame(%d+)$"))
 	if ns.IsDebugTab(index) then return end
-	local changed = false
-	if type(text) == "string" and not U.IsSecret(text) and ns.On("mention") and text:find(ns.NAMED_COLOR, 1, true) then
-		named[frame], changed = true, true
+	if type(text) == "string" and not U.IsSecret(text) and text:find(ns.NAMED_COLOR, 1, true) then
+		named[frame] = true
+		Draw(frame)
 	end
-	if ns.On("unread") and Counts(r, g, b, id) then
-		counts[frame], changed = (counts[frame] or 0) + 1, true
-	end
-	if changed then Draw(frame) end
 end
 
 local function Watch()
@@ -214,10 +178,10 @@ local function Watch()
 		local frame = _G["ChatFrame" .. index]
 		if frame and not watched[frame] and frame.AddMessage then
 			watched[frame] = true
-			hooksecurefunc(frame, "AddMessage", Counted)
+			hooksecurefunc(frame, "AddMessage", Seen)
 			-- Shown: read.
 			frame:HookScript("OnShow", function(self)
-				counts[self], named[self] = nil, nil
+				named[self] = nil
 				Draw(self)
 			end)
 		end
@@ -234,6 +198,6 @@ function ns.InitTabs()
 	C_Timer.After(SETTLE, function() settled = true end)
 	-- A tab made later (by you or by Wanderer): watched too.
 	if FCF_OpenNewWindow then hooksecurefunc("FCF_OpenNewWindow", function() C_Timer.After(0, Watch) end) end
-	-- (a tab shown or hidden with the dock: its count with it)
+	-- (a tab shown or hidden with the dock: its dot with it)
 	if FCF_DockUpdate then hooksecurefunc("FCF_DockUpdate", function() for frame in pairs(watched) do Draw(frame) end end) end
 end

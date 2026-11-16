@@ -108,6 +108,7 @@ end
 
 local function Make()
 	window = Skin.CreateWindow("WandererChatSearch", "MEDIUM")
+	Skin.Sounds(window, Skin.SOUNDS.open, Skin.SOUNDS.close)
 	window:SetSize(WIDTH, HEIGHT)
 	Skin.Dress(window, { "CENTER", UIParent, "CENTER", 0, 60 }, "chatSearch")
 	local _, title, m = Skin.Header(window, "Wanderer", L.SEARCH_TITLE, { settings = "ext:chat" })

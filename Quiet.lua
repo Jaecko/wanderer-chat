@@ -22,9 +22,25 @@ local DECIDED_MOST = 400 -- lines decided (each chat window asks for the same li
 local LINK = "addon:WandererChat:hidden"
 local WIDTH, HEIGHT = 520, 340
 
--- Web addresses, also written apart or disguised ("w w w", "c0m", "(dot)"), looked for in the words without spaces.
-local SITES = { "WWW%.", "HTTPS?:", "%.COM", "%.NET", "%.ORG", "%.CN", "%.RU", "%.CC", "%.IO", "%.TOP", "%.SHOP", "C0M",
-	"DOTCOM", "%(DOT%)", "%[DOT%]", "{DOT}" }
+-- Web addresses as written: a letter or digit, the dot, the ending, then no letter ("gold. Come" is no address).
+local ADDRESSES = { "WWW%.", "HTTPS?:" }
+local DOMAINS = { "COM", "NET", "ORG", "CN", "RU", "CC", "IO", "TOP", "SHOP" }
+-- Disguised ones ("w w w", "c0m", "(dot)"), looked for in the words without spaces.
+local DISGUISED = { "WWW%.", "C0M", "DOTCOM", "%(DOT%)", "%[DOT%]", "{DOT}" }
+
+local function Site(upper)
+	for _, pattern in ipairs(ADDRESSES) do
+		if upper:find(pattern) then return true end
+	end
+	for _, ending in ipairs(DOMAINS) do
+		if upper:find("%w%." .. ending .. "%f[%W]") then return true end
+	end
+	local compact = upper:gsub("%s+", "")
+	for _, pattern in ipairs(DISGUISED) do
+		if compact:find(pattern) then return true end
+	end
+	return false
+end
 -- Prices: found anywhere.
 local MONEY = { "$", "\226\130\172", "\194\163", "USD", "EUR" } -- ($, euro, pound)
 
@@ -38,17 +54,9 @@ local decided, decidedOrder = {}, {}
 local selling -- the words of selling (the client's language and English)
 
 local function Spam(upper)
-	local compact = upper:gsub("%s+", "")
-	local site = false
-	for _, pattern in ipairs(SITES) do
-		if compact:find(pattern) then
-			site = true
-			break
-		end
-	end
-	if not site then return false end
+	if not Site(upper) then return false end
 	for _, sign in ipairs(MONEY) do
-		if compact:find(sign, 1, true) then return true end
+		if upper:find(sign, 1, true) then return true end
 	end
 	local words = ns.Words(upper)
 	for _, word in ipairs(selling) do
@@ -250,6 +258,7 @@ end
 
 local function Make()
 	window = Skin.CreateWindow("WandererChatHidden", "MEDIUM")
+	Skin.Sounds(window, Skin.SOUNDS.open, Skin.SOUNDS.close)
 	window:SetSize(WIDTH, HEIGHT)
 	Skin.Dress(window, { "CENTER", UIParent, "CENTER", 0, 80 }, "chatHidden")
 	local _, title, m = Skin.Header(window, "Wanderer", L.QUIET_TITLE, { settings = "ext:chat" })
@@ -278,7 +287,7 @@ local function Make()
 			return true
 		end })
 	end
-	list:SetScript("OnHyperlinkClick", function(_, link, text, button) if SetItemRef then SetItemRef(link, text, button) end end)
+	list:SetScript("OnHyperlinkClick", function(_, link, text, button) ns.ClickLink(link, text, button) end)
 	if ns.WatchNames then ns.WatchNames(list) end
 	window.list = list
 	window.empty = Skin.Text(window, "GameTooltipText", "muted")
