@@ -975,14 +975,28 @@ function Writing()
 end
 
 -- The mouse over the chat (its lines, the tabs above, the line to write in below, the buttons beside).
+-- (what is under the mouse, read without any measure: in a fight the chat's geometry is hidden, and a hidden answer
+-- tested would stop the whole look; the tabs must stay reachable there)
+local function OverChat()
+	local focus = U.MouseFocus and U.MouseFocus()
+	for _ = 1, 6 do
+		if type(focus) ~= "table" or not focus.GetName then return false end
+		if focus == GeneralDockManager or carried[focus] then return true end
+		local name = U.Clean(U.Safe(focus.GetName, focus))
+		if type(name) == "string" and name:find("^ChatFrame%d+") then return true end
+		focus = focus.GetParent and focus:GetParent()
+	end
+	return false
+end
+
 local function Near()
 	local ok, near = pcall(ChatFrame1.IsMouseOver, ChatFrame1, TAB_ROOM, -(BOX_HEIGHT + 4), -MARGIN * 2, MARGIN)
-	if ok and near then return true end
+	if ok and Clean(near) then return true end
 	if U.IsMouseOver(GeneralDockManager) then return true end
 	for button in pairs(carried) do
 		if button:IsVisible() and U.IsMouseOver(button) then return true end
 	end
-	return false
+	return OverChat()
 end
 
 -- The ground under the mouse, from the tabs to the line to write in.
@@ -996,7 +1010,7 @@ local function ShowHover(value)
 	shownHover = value
 	-- (the combat log in front keeps its own ground)
 	under.ground:SetAlpha(combatInFront and 0 or value)
-	if GeneralDockManager then GeneralDockManager:SetAlpha((dockAlpha or 1) * value) end
+	if GeneralDockManager then pcall(GeneralDockManager.SetAlpha, GeneralDockManager, (dockAlpha or 1) * value) end
 	holder:SetAlpha(value)
 	bar:SetAlpha(value)
 end
