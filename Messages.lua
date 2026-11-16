@@ -1356,6 +1356,8 @@ local function OnMessage(event, text, name, guid, bnID, lineID)
 		lastSound = GetTime()
 		U.PlaySound("TELL_MESSAGE")
 	end
+	-- (the game also flashes its icon in the taskbar for a whisper the chat shows: for one only here, the same)
+	if not me and not U.IsSecret(text) and HiddenInChat() and _G.FlashClientIcon then Safe(_G.FlashClientIcon) end
 	if shown then
 		AddBubble(entry, not entry.text and text or nil)
 	elseif not me and not entry.fight then

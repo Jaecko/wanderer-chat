@@ -162,6 +162,7 @@ local function Once(text, sender, lineID, guid, decide, entry)
 		if #decidedOrder > DECIDED_MOST then decided[table.remove(decidedOrder, 1)] = nil end
 		if why then
 			entry.at, entry.sender, entry.guid, entry.text, entry.why, entry.word = time(), Clean(sender), Clean(guid), text, why, word
+			entry.lineID = type(Clean(lineID)) == "number" and Clean(lineID) or nil
 			Keep(entry)
 		end
 	end
@@ -172,7 +173,7 @@ end
 function ns.HushedChannel(text, sender, lineID, guid, channel)
 	if not ns.On() or not (ns.On("quietChannels") or HiddenWords()[1]) then return false end
 	if U.IsSecret(text) or U.IsSecret(sender) then return false end
-	if not Once(text, sender, lineID, guid, Decide, { channel = channel }) then return false end
+	if not Once(text, sender, lineID, guid, Decide, { channel = channel, chatType = "CHANNEL" }) then return false end
 	NoticeSoon()
 	return true
 end
@@ -219,7 +220,7 @@ function ns.HushedWhisper(text, sender, lineID, guid, flags)
 	if not ns.On("quietWhispers") or U.IsSecret(text) or U.IsSecret(sender) then return false end
 	flags = Clean(flags)
 	if flags == "GM" or flags == "DEV" then return false end
-	if not Once(text, sender, lineID, guid, DecideWhisper, { channel = L.CHAT_TAB_WHISPERS }) then return false end
+	if not Once(text, sender, lineID, guid, DecideWhisper, { channel = L.CHAT_TAB_WHISPERS, chatType = "WHISPER" }) then return false end
 	NoticeSoon()
 	return true
 end
@@ -242,7 +243,9 @@ end
 
 local function Line(entry)
 	local name = ns.Who(entry.sender) or entry.sender or "?"
-	local who = entry.sender and ("|Hplayer:" .. entry.sender .. "|h[" .. ns.Named(name, entry.guid) .. "]|h") or name
+	-- (the line's id and its chat in the link, as the game writes it: its right click menu can report the line)
+	local target = entry.sender and (entry.sender .. (entry.lineID and (":" .. entry.lineID .. ":" .. entry.chatType) or ""))
+	local who = target and ("|Hplayer:" .. target .. "|h[" .. ns.Named(name, entry.guid) .. "]|h") or name
 	local why = entry.why == "spam" and L.QUIET_WHY_SPAM or entry.why == "word" and L.QUIET_WHY_WORD:format(entry.word or "")
 		or L.QUIET_WHY_REPEAT
 	return Skin.Colorize(date("%H:%M", entry.at), "muted") .. "  " .. Channel(entry.channel) .. who .. ": " .. entry.text
@@ -287,7 +290,7 @@ local function Make()
 			return true
 		end })
 	end
-	list:SetScript("OnHyperlinkClick", function(_, link, text, button) ns.ClickLink(link, text, button) end)
+	list:SetScript("OnHyperlinkClick", function(self, link, text, button) ns.ClickLink(link, text, button, self) end)
 	if ns.WatchNames then ns.WatchNames(list) end
 	window.list = list
 	window.empty = Skin.Text(window, "GameTooltipText", "muted")

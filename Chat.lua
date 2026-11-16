@@ -418,10 +418,23 @@ end
 -- a quest...: the game's link tooltip, a second click on the same one closes it.
 local TOOLTIP_LINKS = { item = true, spell = true, quest = true, enchant = true, achievement = true, talent = true,
 	currency = true, currencyinfo = true, trade = true, outfit = true }
-function ns.ClickLink(link, text)
+function ns.ClickLink(link, text, button, owner)
 	if type(link) ~= "string" or U.IsSecret(link) then return end
 	local kind = link:match("^([^:]+)")
-	if kind == "player" or kind == "BNplayer" then return end
+	if kind == "BNplayer" then return end
+	if kind == "player" then
+		-- (a right click: the game's own menu of a name in the chat, Report included, as on a chat line; a plain
+		-- left click whispers, unless ns.WatchNames has opened the messages window on it already)
+		local who = ns.ParsePlayerLink and ns.ParsePlayerLink(link)
+		if not who then return end
+		if button == "RightButton" then
+			if _G.FriendsFrame_ShowDropdown then Safe(_G.FriendsFrame_ShowDropdown, who.full, true, who.lineID, who.chatType, owner) end
+		elseif button == "LeftButton" and not (IsShiftKeyDown() or IsControlKeyDown() or IsAltKeyDown())
+			and not (ns.On("messagesWindow") and not ns.Yields("whispers")) then
+			ns.Whisper(who.full)
+		end
+		return
+	end
 	if IsShiftKeyDown() then
 		-- (the messages' answer line first, when you are writing in it)
 		if ns.MessagesInsert and ns.MessagesInsert(text) then return end
