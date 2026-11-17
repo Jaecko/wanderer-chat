@@ -264,6 +264,9 @@ local function Card()
 	local m = Skin.Margin() + 6
 	card.margin = m
 	card.kicker = Skin.CreateKicker(card)
+	-- (the game look: the game's small gold title, written as it is, and its own divider and hover below)
+	card.game = rawget(Skin, "GameWindows") ~= nil and Skin.GameWindows()
+	if card.game and _G.GameFontNormalSmall then card.kicker:SetFontObject(Skin.FontFor("GameFontNormalSmall")) end
 	card.kicker:SetPoint("TOPLEFT", card, "TOPLEFT", m, -m)
 	card.chips = { Skin.Chip(card), Skin.Chip(card) }
 	card.chips[1]:SetPoint("TOPRIGHT", card, "TOPRIGHT", -m, -m + 3)
@@ -280,6 +283,7 @@ local function Card()
 		card.rows[index] = row
 	end
 	card.rule = Skin.Rule(card, false, 0.14)
+	if card.game then Skin.GameAtlas(card.rule, "Options_HorizontalDivider") end
 	-- Your note: its sign and its words (or an invitation to write one), a click to change it.
 	card.note = CreateFrame("Button", nil, card)
 	card.note:SetHeight(NOTE_HEIGHT)
@@ -293,7 +297,7 @@ local function Card()
 	if card.note.text.SetWordWrap then card.note.text:SetWordWrap(false) end
 	local hover = card.note:CreateTexture(nil, "HIGHLIGHT")
 	hover:SetAllPoints()
-	hover:SetColorTexture(1, 1, 1, Skin.HOVER or 0.05)
+	if card.game then Skin.HoverTint(hover) else hover:SetColorTexture(1, 1, 1, Skin.HOVER or 0.05) end
 	card.note:SetScript("OnClick", function() Skin.Play("click") EditNote() end)
 	Skin.Tooltip(card.note, function() return { L.CARD_NOTE, { (U.UsingPad and U.UsingPad()) and L.CARD_NOTE_DESC_PAD or L.CARD_NOTE_DESC, Skin.COLORS.text[1], Skin.COLORS.text[2], Skin.COLORS.text[3] } } end, "ANCHOR_BOTTOM")
 	-- A right click on the card: your note.
@@ -364,8 +368,8 @@ local function Fill(who)
 	local info = ns.PersonInfo(who.full, who.guid)
 	card.who, card.info = who, info
 	local m = card.margin
-	card.kicker:SetText(U.Upper((info.guildmate and L.CARD_GUILD) or (info.mine and L.CARD_MINE)
-		or (info.group and L.CARD_GROUP) or L.CARD_PLAYER))
+	local kicker = (info.guildmate and L.CARD_GUILD) or (info.mine and L.CARD_MINE) or (info.group and L.CARD_GROUP) or L.CARD_PLAYER
+	card.kicker:SetText(card.game and kicker or U.Upper(kicker))
 	local r, g, b = U.ClassColor(info.class)
 	card.name:SetText(info.name)
 	if r then card.name:SetTextColor(r, g, b) else card.name:SetTextColor(Skin.COLORS.gold[1], Skin.COLORS.gold[2], Skin.COLORS.gold[3]) end

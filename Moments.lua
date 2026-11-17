@@ -69,6 +69,9 @@ local function Make()
 	card:EnableMouse(true)
 	local margin = Skin.Margin()
 	card.kicker = Skin.CreateKicker(card)
+	-- (the game look: the game's small gold title, written as it is)
+	card.game = rawget(Skin, "GameWindows") ~= nil and Skin.GameWindows()
+	if card.game and _G.GameFontNormalSmall then card.kicker:SetFontObject(Skin.FontFor("GameFontNormalSmall")) end
 	card.kicker:SetPoint("TOPLEFT", card, "TOPLEFT", margin, -margin)
 	card.title = Skin.Text(card, "GameFontNormal", "text")
 	card.title:SetPoint("TOPLEFT", card.kicker, "BOTTOMLEFT", 0, -3)
@@ -126,7 +129,7 @@ function ns.Card(spec)
 	end
 	card.left = LIFE[spec.kind] or 120
 	card.stale = spec.stale or (ns.Busy() and not spec.waits and GetTime() + STALE) or nil
-	card.kicker:SetText(U.Upper(spec.kicker or ""))
+	card.kicker:SetText(card.game and (spec.kicker or "") or U.Upper(spec.kicker or ""))
 	card.title:SetText(spec.title or "")
 	card.body:SetText(spec.body or "")
 	card.body:SetShown(spec.body ~= nil)

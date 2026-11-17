@@ -724,13 +724,19 @@ local NAME_ROOM = LIST_WIDTH - TEXT_LEFT - MORE_COLUMN - 4
 local function Paint(row)
 	local selected = row.key ~= nil and row.key == current
 	local hovered = (U.Hovered and U.Hovered(row) or row:IsMouseOver()) or (U.Hovered and U.Hovered(row.more) or row.more:IsMouseOver())
-	if selected then
+	-- (the game look: the game's own chosen and hover pictures, no gold edge of Wanderer's beside them)
+	local game = rawget(Skin, "GameWindows") ~= nil and Skin.GameWindows()
+	if game and selected then
+		Skin.ChosenTint(row.background)
+	elseif game and hovered then
+		Skin.HoverTint(row.background)
+	elseif selected then
 		local gold = Skin.COLORS.gold
 		row.background:SetColorTexture(gold[1], gold[2], gold[3], (Skin.CHOSEN or 0.1) + (hovered and (Skin.HOVER or 0.05) or 0))
 	else
 		row.background:SetColorTexture(1, 1, 1, hovered and (Skin.HOVER or 0.05) or 0)
 	end
-	row.edge:SetShown(selected)
+	row.edge:SetShown(selected and not game)
 	row.more:SetShown(selected or hovered)
 end
 
