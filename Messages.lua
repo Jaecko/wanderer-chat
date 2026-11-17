@@ -996,10 +996,14 @@ local function CreateWindow()
 	-- Escape closes it like every window (Skin.Dress keeps it in UISpecialFrames); while writing, the first Escape
 	-- only leaves the answer line, as in the game's chat.
 	local margin = Skin.Margin() + 6
+	-- (the game look: the cross in the game's bar over the window, so the top and the right corner free: the people
+	-- and the person right under the bar, the "..." at the margin)
+	local game = rawget(Skin, "GameWindows") ~= nil and Skin.GameWindows()
+	local top, corner = game and 8 or margin, game and margin or 36
 
 	-- The people, on the left.
 	list = CreateFrame("Frame", nil, window)
-	list:SetPoint("TOPLEFT", window, "TOPLEFT", margin, -margin)
+	list:SetPoint("TOPLEFT", window, "TOPLEFT", margin, -top)
 	list:SetPoint("BOTTOMLEFT", window, "BOTTOMLEFT", margin, margin)
 	list:SetWidth(LIST_WIDTH)
 	if list.SetClipsChildren then list:SetClipsChildren(true) end -- a short window: the last people under the rest
@@ -1034,7 +1038,7 @@ local function CreateWindow()
 	portrait:SetPoint("TOPLEFT", list, "TOPRIGHT", 16, 0)
 	-- The options of the person shown, at the top right of the conversation (the cross keeps its corner).
 	window.options = MoreButton(window, function(self) OpenMenu(self, current) end, true, L.MESSAGES_PERSON_HINT)
-	window.options:SetPoint("TOPRIGHT", window, "TOPRIGHT", -36, -margin)
+	window.options:SetPoint("TOPRIGHT", window, "TOPRIGHT", -corner, -top)
 	window.options:Hide()
 	-- The window's settings (colors, popup, sound), as every window's cog, left of the "...".
 	window.cog = Skin.GlyphButton(window, "cog", 14, L.SETTINGS_COG, function() W.OpenOptions("ext:chat") end)
@@ -1043,13 +1047,13 @@ local function CreateWindow()
 	header:SetPoint("TOPLEFT", portrait, "TOPRIGHT", 12, -3)
 	-- (the heading's "?" left of the cog: what the window does)
 	local help = Skin.Help and Skin.Help(window, L.MESSAGES_HELP, "HEADING")
-	header:SetPoint("RIGHT", window, "RIGHT", -36 - Skin.ROW_MORE - 26 - (help and 20 or 0), 0)
+	header:SetPoint("RIGHT", window, "RIGHT", -corner - Skin.ROW_MORE - 26 - (help and 20 or 0), 0)
 	if header.SetWordWrap then header:SetWordWrap(false) end
 	-- Who they are, under the name.
 	info = Skin.Text(window, "GameTooltipTextSmall", "soft")
 	info:SetPoint("TOPLEFT", header, "BOTTOMLEFT", 0, -4)
 	-- (the whole width up to the "..." button's edge, on more lines rather than cut)
-	info:SetPoint("RIGHT", window, "RIGHT", -36, 0)
+	info:SetPoint("RIGHT", window, "RIGHT", -corner, 0)
 	if info.SetWordWrap then info:SetWordWrap(true) end
 	if info.SetMaxLines then info:SetMaxLines(INFO_LINES) end
 	-- A click on the person (portrait or name): what can be done with them.

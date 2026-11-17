@@ -13,6 +13,7 @@ local Skin = W and W.Skin
 local Safe, Clean = U and U.Safe, U and U.Clean
 
 local WIDTH, HEIGHT = 600, 400
+local GAME_TOP = 3 -- (the game look: the words to find on the line of the cog)
 local MOST = 500 -- lines read, the newest
 local QUERY_MOST = 60
 local FOUND_COLOR = "|cffffd35c" -- the gold of your name (Highlight.lua)
@@ -137,7 +138,14 @@ local function Make()
 			window:Hide()
 		end,
 	})
-	window.input:SetPoint("TOPLEFT", title, "BOTTOMLEFT", 0, -10)
+	if rawget(Skin, "GameWindows") ~= nil and Skin.GameWindows() then
+		-- (the game look: the name in the game's bar, the words to find in its place; the window as much less tall
+		-- as they come higher, the kicker and title 29 under the margin)
+		window.input:SetPoint("TOPLEFT", window, "TOPLEFT", m, -GAME_TOP)
+		window:SetHeight(HEIGHT - (m + 29 + 10 - GAME_TOP))
+	else
+		window.input:SetPoint("TOPLEFT", title, "BOTTOMLEFT", 0, -10)
+	end
 	window.input:SetPoint("RIGHT", window, "RIGHT", -(m + 130), 0)
 	window.older:SetPoint("LEFT", window.input, "RIGHT", 6, 0)
 	window.newer:SetPoint("LEFT", window.older, "RIGHT", 2, 0)

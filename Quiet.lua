@@ -21,6 +21,7 @@ local SAID_MOST = 300 -- what was said lately, looked through once that many
 local DECIDED_MOST = 400 -- lines decided (each chat window asks for the same line)
 local LINK = "addon:WandererChat:hidden"
 local WIDTH, HEIGHT = 520, 340
+local GAME_TOP = 8 -- (the game look: the summary right under the game's bar)
 
 -- Web addresses as written: a letter or digit, the dot, the ending, then no letter ("gold. Come" is no address).
 local ADDRESSES = { "WWW%.", "HTTPS?:" }
@@ -269,8 +270,16 @@ local function Make()
 	window.count = Skin.Chip(window)
 	window.count:SetPoint("LEFT", title, "RIGHT", 8, 0)
 	window.summary = Skin.Text(window, "GameTooltipTextSmall", "muted")
-	window.summary:SetPoint("TOPLEFT", title, "BOTTOMLEFT", 0, -5)
-	window.summary:SetPoint("RIGHT", window, "RIGHT", -m, 0)
+	if rawget(Skin, "GameWindows") ~= nil and Skin.GameWindows() then
+		-- (the game look: the name in the game's bar, these words in its place, left of the count; the window as much
+		-- less tall as they come higher, the kicker and title 29 under the margin)
+		window.summary:SetPoint("TOPLEFT", window, "TOPLEFT", m, -GAME_TOP)
+		window.summary:SetPoint("RIGHT", window.count, "LEFT", -10, 0)
+		window:SetHeight(HEIGHT - (m + 29 + 5 - GAME_TOP))
+	else
+		window.summary:SetPoint("TOPLEFT", title, "BOTTOMLEFT", 0, -5)
+		window.summary:SetPoint("RIGHT", window, "RIGHT", -m, 0)
+	end
 	window.summary:SetText(L.QUIET_SUMMARY)
 	-- The lines, as in the chat (a name under the mouse: its card; the wheel scrolls).
 	local list = CreateFrame("ScrollingMessageFrame", nil, window)
