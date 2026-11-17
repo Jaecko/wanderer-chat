@@ -33,11 +33,11 @@ local Safe, Clean = U and U.Safe, U and U.Clean
 local INK = { 0.055, 0.059, 0.071 } -- #0E0F12
 local WORDS = { 0.91, 0.894, 0.855 } -- #E8E4DA, the words of a line
 local VIOLET = { 0.886, 0.545, 0.91 } -- #E28BE8, a whisper's edge
-local GOLD = Skin.COLORS.gold
+local GOLD = (rawget(Skin, "SCREEN_COLORS") or Skin.COLORS).gold
 local TAB_HOVER = { 1, 1, 1 }
 local TAB_WORDS = { 0.96, 0.95, 0.92 } -- a tab not shown: soft, still readable on the ground
 -- (the palette's muted, as a color code: the hour and the quiet words)
-local MUTED = Skin.COLORS.muted or Skin.COLORS.text
+local MUTED = (rawget(Skin, "SCREEN_COLORS") or Skin.COLORS).muted or (rawget(Skin, "SCREEN_COLORS") or Skin.COLORS).text
 local MUTED_HEX = U.ColorCode(MUTED[1], MUTED[2], MUTED[3])
 local VEIL, VEIL_SOLID = 0.45, 0.55 -- the veil at rest: its darkness under the words, the part of the width before it fades
 local GROUND = 0.55 -- the ground under the mouse
@@ -1305,7 +1305,7 @@ local function Build()
 	marker.ground = marker:CreateTexture(nil, "BACKGROUND")
 	marker.ground:SetAllPoints()
 	marker.ground:SetColorTexture(INK[1], INK[2], INK[3], 0.85)
-	marker.text = Skin.Text(marker, "GameTooltipTextSmall", "gold")
+	marker.text = (rawget(Skin, "ScreenText") or Skin.Text)(marker, "GameTooltipTextSmall", "gold")
 	marker.text:SetPoint("CENTER")
 	for index, side in ipairs({ "LEFT", "RIGHT" }) do
 		local rule = marker:CreateTexture(nil, "ARTWORK")
@@ -1333,7 +1333,7 @@ local function Build()
 	pin.edge:SetPoint("BOTTOMLEFT")
 	pin.edge:SetWidth(EDGE)
 	pin.edge:SetColorTexture(VIOLET[1], VIOLET[2], VIOLET[3], 0.9)
-	pin.text = Skin.Text(pin, "GameTooltipTextSmall", "soft")
+	pin.text = (rawget(Skin, "ScreenText") or Skin.Text)(pin, "GameTooltipTextSmall", "soft")
 	pin.text:SetPoint("LEFT", pin, "LEFT", MARGIN + EDGE, 0)
 	if pin.text.SetWordWrap then pin.text:SetWordWrap(false) end
 	pin.close = CreateFrame("Button", nil, pin)
@@ -1356,7 +1356,7 @@ local function Build()
 	-- (what they said, under the mouse)
 	Skin.Tooltip(pin, function()
 		local entry = pending[#pending]
-		if entry and entry.text then return { entry.name, { ns.Excerpt(entry.text, 160), Skin.COLORS.text[1], Skin.COLORS.text[2], Skin.COLORS.text[3] } } end
+		if entry and entry.text then return { entry.name, { ns.Excerpt(entry.text, 160), (rawget(Skin, "SCREEN_COLORS") or Skin.COLORS).text[1], (rawget(Skin, "SCREEN_COLORS") or Skin.COLORS).text[2], (rawget(Skin, "SCREEN_COLORS") or Skin.COLORS).text[3] } } end
 	end, "ANCHOR_TOP")
 	pin:Hide()
 	-- (a controller: its touchpad goes to the whisper waiting, its answer and its cross)
