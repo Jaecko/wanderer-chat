@@ -243,4 +243,5 @@ ns.LOCALES.ruRU = {
 	MESSAGES_REMOVE_FRIEND_ASK = "Удалить %s из друзей?",
 	MESSAGES_TRIMMED = "Забыто старых бесед: %d. Хранятся %d последних, закреплённые всегда.",
 	MESSAGES_NEW = "Новое",
+	MESSAGES_PAD_SCROLL = "Правый стик: прокрутка беседы",
 }

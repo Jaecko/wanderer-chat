@@ -243,4 +243,5 @@ ns.LOCALES.esES = {
 	MESSAGES_REMOVE_FRIEND_ASK = "¿Quitar a %s de tus amigos?",
 	MESSAGES_TRIMMED = "Conversaciones más antiguas olvidadas: %d. Se guardan las %d más recientes, las fijadas siempre.",
 	MESSAGES_NEW = "Nuevo",
+	MESSAGES_PAD_SCROLL = "Stick derecho: desplazar la conversación",
 }

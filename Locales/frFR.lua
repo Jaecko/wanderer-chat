@@ -243,4 +243,5 @@ ns.LOCALES.frFR = {
 	MESSAGES_REMOVE_FRIEND_ASK = "Retirer %s de vos amis ?",
 	MESSAGES_TRIMMED = "Conversations les plus anciennes oubliées : %d. Les %d plus récentes sont gardées, les épinglées toujours.",
 	MESSAGES_NEW = "Nouveau",
+	MESSAGES_PAD_SCROLL = "Stick droit : faire défiler la conversation",
 }

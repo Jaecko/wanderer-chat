@@ -243,4 +243,5 @@ ns.LOCALES.deDE = {
 	MESSAGES_REMOVE_FRIEND_ASK = "%s aus deinen Freunden entfernen?",
 	MESSAGES_TRIMMED = "Älteste Gespräche vergessen: %d. Die %d neuesten bleiben, angeheftete immer.",
 	MESSAGES_NEW = "Neu",
+	MESSAGES_PAD_SCROLL = "Rechter Stick: Unterhaltung scrollen",
 }

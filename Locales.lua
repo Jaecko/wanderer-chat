@@ -247,6 +247,7 @@ local LOCALES = {
 		MESSAGES_REMOVE_FRIEND_ASK = "Remove %s from your friends?",
 		MESSAGES_TRIMMED = "Oldest conversations forgotten: %d. The %d most recent are kept, pinned ones always.",
 		MESSAGES_NEW = "New",
+		MESSAGES_PAD_SCROLL = "Right stick: scroll the conversation",
 	},
 }
 ns.LOCALES = LOCALES

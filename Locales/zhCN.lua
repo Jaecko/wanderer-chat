@@ -243,4 +243,5 @@ ns.LOCALES.zhCN = {
 	MESSAGES_REMOVE_FRIEND_ASK = "将%s从好友中移除？",
 	MESSAGES_TRIMMED = "已忘记%d段最早的对话。只保留最近的%d段，置顶的始终保留。",
 	MESSAGES_NEW = "新消息",
+	MESSAGES_PAD_SCROLL = "右摇杆：滚动对话",
 }

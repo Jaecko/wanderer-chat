@@ -608,8 +608,22 @@ local function AddBubble(entry, secretText)
 	ScrollToEnd()
 end
 
+-- With a controller, a quiet line under the conversation: its right stick scrolls back through it (the cursor
+-- never stops in the thread); the thread a little shorter for it. Hidden with a mouse.
+local THREAD_GAP, HINT_ROOM = 8, 20
+local function PadHint()
+	local hint = window and window.padHint
+	if not hint then return end
+	local shown = current ~= nil and (U.UsingPad and U.UsingPad()) and true or false
+	if hint:IsShown() == shown and thread.hintRoom == shown then return end
+	hint:SetShown(shown)
+	thread.hintRoom = shown
+	thread:SetPoint("BOTTOMRIGHT", input, "TOPRIGHT", 0, shown and HINT_ROOM or THREAD_GAP)
+end
+
 local function ShowConversation(key)
 	current = key
+	PadHint()
 	local talk = Conversation(key)
 	-- (its draft back in the line, as left: the line untouched when it holds it already)
 	local draft = talk.draft or ""
@@ -913,6 +927,7 @@ function ns.RefreshMessages()
 		ClearThread()
 		input:Hide()
 	end
+	PadHint()
 end
 
 -- Your message in the window at once, as you send it: never waiting for the
@@ -1105,7 +1120,16 @@ local function CreateWindow()
 	header:SetText("")
 	info:SetText("")
 	thread:SetPoint("TOPLEFT", portrait, "BOTTOMLEFT", 0, -10 - math.max(0, math.ceil(tall - PORTRAIT)))
-	thread:SetPoint("BOTTOMRIGHT", input, "TOPRIGHT", 0, 8)
+	thread:SetPoint("BOTTOMRIGHT", input, "TOPRIGHT", 0, THREAD_GAP)
+	thread.hintRoom = false
+	-- (a controller: the right stick scrolls the thread, said under it, small; PadHint shows it)
+	window.padHint = Skin.Text(window, "GameTooltipTextSmall", "muted")
+	window.padHint:SetPoint("BOTTOMLEFT", input, "TOPLEFT", 2, 4)
+	window.padHint:SetPoint("BOTTOMRIGHT", input, "TOPRIGHT", -2, 4)
+	window.padHint:SetJustifyH("RIGHT")
+	if window.padHint.SetWordWrap then window.padHint:SetWordWrap(false) end
+	window.padHint:SetText(L.MESSAGES_PAD_SCROLL)
+	window.padHint:Hide()
 	-- Its width is known from the window's (the frame may not be laid out yet).
 	thread.width = window:GetWidth() - margin * 2 - LIST_WIDTH - 16
 	-- An empty conversation says so, calmly, in its middle.

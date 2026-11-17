@@ -243,4 +243,5 @@ ns.LOCALES.ptBR = {
 	MESSAGES_REMOVE_FRIEND_ASK = "Remover %s dos seus amigos?",
 	MESSAGES_TRIMMED = "Conversas mais antigas esquecidas: %d. As %d mais recentes ficam, as fixadas sempre.",
 	MESSAGES_NEW = "Novo",
+	MESSAGES_PAD_SCROLL = "Analógico direito: rolar a conversa",
 }

@@ -243,4 +243,5 @@ ns.LOCALES.koKR = {
 	MESSAGES_REMOVE_FRIEND_ASK = "%s 님을 친구에서 삭제할까요?",
 	MESSAGES_TRIMMED = "오래된 대화 %d개를 잊었습니다. 최근 %d개만 남고, 고정한 대화는 항상 남습니다.",
 	MESSAGES_NEW = "새 메시지",
+	MESSAGES_PAD_SCROLL = "오른쪽 스틱: 대화 스크롤",
 }
