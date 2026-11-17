@@ -1068,6 +1068,8 @@ local function CreateWindow()
 	if window.cog then window.cog:SetFrameLevel(person:GetFrameLevel() + 2) end
 	-- (the answer line is for a keyboard only, on purpose: writing needs one, as in the game's own chat)
 	input = Skin.CreateInput(window, "WandererChatMessagesInput", 255)
+	-- (the server counts bytes, not letters: accents and links make a line longer than it looks; as the game's own line)
+	if input.SetMaxBytes then input:SetMaxBytes(256) end
 	input:SetPoint("BOTTOMLEFT", list, "BOTTOMRIGHT", 16, 0)
 	input:SetPoint("BOTTOMRIGHT", window, "BOTTOMRIGHT", -margin, margin)
 	input:SetScript("OnEnterPressed", Send)
