@@ -525,6 +525,7 @@ local function ClearThread()
 	for index = 1, used.bubbles do bubbles[index]:Hide() bubbles[index].entry = nil end
 	for index = 1, used.stamps do stamps[index]:Hide() end
 	used.bubbles, used.stamps, used.height = 0, 0, 0
+	thread.draws = (thread.draws or 0) + 1 -- (a pending PadHint settle then leaves the new drawing alone)
 	lastShown = nil
 	if window.emptyThread then window.emptyThread:Hide() end
 	thread.content:SetHeight(1)
@@ -616,9 +617,26 @@ local function PadHint()
 	if not hint then return end
 	local shown = current ~= nil and (U.UsingPad and U.UsingPad()) and true or false
 	if hint:IsShown() == shown and thread.hintRoom == shown then return end
+	-- (the reading position kept: back to the last message only when it was there already)
+	local before = math.max(0, used.height - (thread:GetHeight() or 0))
+	local atEnd = (thread:GetVerticalScroll() or 0) >= before - 2
 	hint:SetShown(shown)
 	thread.hintRoom = shown
 	thread:SetPoint("BOTTOMRIGHT", input, "TOPRIGHT", 0, shown and HINT_ROOM or THREAD_GAP)
+	local function Settle()
+		local range = math.max(0, used.height - (thread:GetHeight() or 0))
+		if atEnd then
+			thread:SetVerticalScroll(range)
+		elseif (thread:GetVerticalScroll() or 0) > range then
+			thread:SetVerticalScroll(range)
+		end
+	end
+	Settle()
+	-- (and again once the game has laid the shorter or taller thread out, unless redrawn meanwhile)
+	local draws = thread.draws
+	if C_Timer and C_Timer.After then
+		C_Timer.After(0, function() if thread.draws == draws then Settle() end end)
+	end
 end
 
 local function ShowConversation(key)
